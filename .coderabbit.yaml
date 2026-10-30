@@ -1,0 +1,6 @@
+version: "2"
+reviews:
+  profile: "assertive"
+  auto_review:
+    enabled: true
+    drafts: false
