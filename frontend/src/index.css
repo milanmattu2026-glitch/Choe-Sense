@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Leaflet overrides for dark command center theme ── */
+.leaflet-container {
+  background: #0a1628 !important;
+  font-family: 'JetBrains Mono', monospace;
+}
+.leaflet-tile {
+  filter: brightness(0.5) saturate(0.6) hue-rotate(195deg);
+}
+.leaflet-popup-content-wrapper {
+  background: #0d1629;
+  border: 1px solid #1e3a5f;
+  color: #e2e8f0;
+  border-radius: 8px;
+}
+.leaflet-popup-tip {
+  background: #1e3a5f;
+}
+
+/* ── Animated backflow pipe pulse ── */
+@keyframes backflow-pulse {
+  0%, 100% { stroke-opacity: 1; stroke-width: 4; }
+  50%       { stroke-opacity: 0.3; stroke-width: 6; }
+}
+.backflow-active path {
+  animation: backflow-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Countdown badge ── */
+.countdown-badge {
+  @apply absolute -top-2 -right-2 bg-red-600 text-white text-xs font-mono px-1.5 py-0.5 rounded-full z-50;
+  animation: ping 2s cubic-bezier(0,0,0.2,1) infinite;
+}
+
+/* ── Range slider ── */
+input[type='range'] {
+  @apply w-full h-1.5 rounded-full appearance-none cursor-pointer;
+  background: linear-gradient(to right, #00d4ff 0%, #00d4ff var(--value, 50%), #1e3a5f var(--value, 50%), #1e3a5f 100%);
+}
+input[type='range']::-webkit-slider-thumb {
+  @apply appearance-none w-4 h-4 rounded-full bg-command-accent;
+  box-shadow: 0 0 8px #00d4ff88;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #0a0f1e; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 4px; }
+
+/* ── Leaflet Custom DivIcon & Popup Overrides ── */
+.custom-pulsing-marker, .custom-truck-marker {
+  background: transparent !important;
+  border: none !important;
+}
+.custom-popup .leaflet-popup-content-wrapper {
+  background: #020617 !important;
+  border: 1px solid #1e293b !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
+}
+.custom-popup .leaflet-popup-content {
+  margin: 0 !important;
+  line-height: inherit !important;
+}
+.custom-popup .leaflet-popup-tip {
+  background: #020617 !important;
+}
