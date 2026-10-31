@@ -23,7 +23,7 @@ ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler
 );
 
-const DARK_MATTER_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const OSM_TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const RAINVIEWER_HOST = "https://tilecache.rainviewer.com";
 const DEFAULT_RADAR_PATH = "/v2/radar/9a0531cf482c";
 
@@ -96,19 +96,37 @@ export default function CommandCenter() {
 
   // Load live RainViewer radar frames
   useEffect(() => {
+    const handleRadarData = (data) => {
+      if (data?.radar?.past && data.radar.past.length > 0) {
+        const latest = data.radar.past[data.radar.past.length - 1];
+        setRadarPath(latest.path);
+        const timeDate = new Date(latest.time * 1000);
+        setRadarTimestamp(`RADAR: ${timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        return true;
+      }
+      return false;
+    };
+
     fetch('https://api.rainviewer.com/public/weather-maps.json')
       .then(res => res.json())
       .then(data => {
-        if (data?.radar?.past && data.radar.past.length > 0) {
-          const latest = data.radar.past[data.radar.past.length - 1];
-          setRadarPath(latest.path);
-          const timeDate = new Date(latest.time * 1000);
-          setRadarTimestamp(`RADAR: ${timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        if (!handleRadarData(data)) {
+          throw new Error("No past radar frames");
         }
       })
       .catch(() => {
-        setRadarPath(DEFAULT_RADAR_PATH);
-        setRadarTimestamp("RADAR: LIVE (1793364000)");
+        fetch('http://localhost:8000/api/weather/radar')
+          .then(res => res.json())
+          .then(data => {
+            if (!handleRadarData(data)) {
+              setRadarPath(DEFAULT_RADAR_PATH);
+              setRadarTimestamp("RADAR: LIVE DOPPLER");
+            }
+          })
+          .catch(() => {
+            setRadarPath(DEFAULT_RADAR_PATH);
+            setRadarTimestamp("RADAR: LIVE DOPPLER");
+          });
       });
   }, []);
 
@@ -267,10 +285,10 @@ export default function CommandCenter() {
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-100 select-none">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-100">
 
       {/* TOP NAVIGATION & VIEW MODE SWITCHER */}
-      <header className="flex h-14 items-center justify-between border-b border-slate-900 bg-slate-950 px-5">
+      <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-900 bg-slate-950 px-5 pointer-events-auto">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 font-bold text-white">
             CS
@@ -287,7 +305,7 @@ export default function CommandCenter() {
         <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
           <button
             onClick={() => setViewMode('WAR_ROOM')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               viewMode === 'WAR_ROOM'
                 ? 'bg-cyan-600 text-white shadow'
                 : 'text-slate-400 hover:text-white'
@@ -297,7 +315,7 @@ export default function CommandCenter() {
           </button>
           <button
             onClick={() => setViewMode('CREW_PWA')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               viewMode === 'CREW_PWA'
                 ? 'bg-emerald-600 text-white shadow'
                 : 'text-slate-400 hover:text-white'
@@ -321,7 +339,7 @@ export default function CommandCenter() {
         <div className="flex flex-1 flex-col overflow-hidden">
 
           {/* ANTI-SPAM DEDUPLICATION TELEMETRY BANNER */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 bg-slate-900/50 border-b border-slate-900 p-3 items-center">
+          <div className="relative z-20 grid grid-cols-1 md:grid-cols-5 gap-3 bg-slate-900/50 border-b border-slate-900 p-3 items-center pointer-events-auto">
             <div className="flex flex-col border-r border-slate-800 pr-3">
               <span className="text-[10px] uppercase text-slate-400 font-semibold">Incoming Citizen Reports</span>
               <div className="flex items-baseline gap-2 mt-0.5">
@@ -353,7 +371,7 @@ export default function CommandCenter() {
               </div>
               <input
                 type="range" min="0" max="150" step="1"
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-cyan-500 mt-1"
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-cyan-500 mt-1 relative z-20"
                 value={rainRate} onChange={(e) => setRainRate(parseFloat(e.target.value))}
               />
             </div>
@@ -362,7 +380,7 @@ export default function CommandCenter() {
               <button
                 onClick={triggerCrowdBurstSimulation}
                 disabled={burstRunning}
-                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-xs font-bold text-white shadow-lg transition"
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-xs font-bold text-white shadow-lg transition cursor-pointer relative z-20 disabled:cursor-not-allowed"
               >
                 {burstRunning ? '⚡ Absorbing 200 Msgs...' : '⚡ Simulate +200 Crowd Msgs'}
               </button>
@@ -370,10 +388,10 @@ export default function CommandCenter() {
           </div>
 
           {/* 3-COLUMN WORKSPACE */}
-          <div className="flex flex-1 overflow-hidden p-3 gap-3">
+          <div className="relative z-10 flex flex-1 overflow-hidden p-3 gap-3 pointer-events-auto">
 
             {/* LEFT PANEL: KALMAN CONSENSUS CLUSTER CARD */}
-            <div className="flex w-80 flex-col gap-3 overflow-y-auto">
+            <div className="relative z-20 flex w-80 flex-col gap-3 overflow-y-auto pointer-events-auto">
               <div className="rounded-xl border border-slate-900 bg-slate-900/40 p-3">
                 <div className="flex justify-between items-center mb-1">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
@@ -445,10 +463,10 @@ export default function CommandCenter() {
             </div>
 
             {/* CENTER PANEL: GIS SECTOR MAP */}
-            <div className="flex-1 rounded-xl border border-slate-900 bg-slate-950 overflow-hidden relative">
+            <div className="relative z-10 flex-1 rounded-xl border border-slate-900 bg-slate-950 overflow-hidden pointer-events-auto">
               
               {/* RAINVIEWER LIVE DOPPLER RADAR HUD */}
-              <div className="absolute top-3 right-3 z-[1000] bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 shadow-2xl backdrop-blur-sm flex flex-col gap-1.5 min-w-[210px]">
+              <div className="absolute top-3 right-3 z-[1000] bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 shadow-2xl backdrop-blur-sm flex flex-col gap-1.5 min-w-[210px] pointer-events-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="flex h-2 w-2 relative">
@@ -459,7 +477,7 @@ export default function CommandCenter() {
                   </div>
                   <button
                     onClick={() => setShowRadar(!showRadar)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition cursor-pointer ${
                       showRadar ? 'bg-cyan-600 text-white shadow' : 'bg-slate-800 text-slate-400'
                     }`}
                   >
@@ -477,7 +495,7 @@ export default function CommandCenter() {
                       type="range" min="0.2" max="1" step="0.05"
                       value={radarOpacity}
                       onChange={(e) => setRadarOpacity(parseFloat(e.target.value))}
-                      className="h-1 flex-1 cursor-pointer appearance-none rounded bg-slate-800 accent-cyan-500"
+                      className="h-1 flex-1 cursor-pointer appearance-none rounded bg-slate-800 accent-cyan-500 relative z-20"
                     />
                     <span className="text-[9px] font-mono text-slate-400">{Math.round(radarOpacity * 100)}%</span>
                   </div>
@@ -485,14 +503,21 @@ export default function CommandCenter() {
               </div>
 
               <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-                <TileLayer url={DARK_MATTER_TILES} attribution="" />
+                <TileLayer
+                  url={OSM_TILES}
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
                 
                 {/* RainViewer Live Doppler Precipitation Radar Layer */}
                 {showRadar && radarPath && (
                   <TileLayer
+                    key={`radar-${radarPath}`}
                     url={`${RAINVIEWER_HOST}${radarPath}/256/{z}/{x}/{y}/2/1_1.png`}
                     opacity={radarOpacity}
                     zIndex={400}
+                    maxNativeZoom={7}
+                    maxZoom={19}
+                    tileSize={256}
                   />
                 )}
                 
@@ -535,7 +560,7 @@ export default function CommandCenter() {
             </div>
 
             {/* RIGHT PANEL: SILENT AUTONOMOUS FLEET LEDGER */}
-            <div className="flex w-96 flex-col gap-3 overflow-y-auto">
+            <div className="relative z-20 flex w-96 flex-col gap-3 overflow-y-auto pointer-events-auto">
               <div className="rounded-xl border border-slate-900 bg-slate-900/40 p-3">
                 <div className="flex justify-between items-center mb-1">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
@@ -566,7 +591,7 @@ export default function CommandCenter() {
                             setSelectedCrewUnit(d.asset_id);
                             setViewMode('CREW_PWA');
                           }}
-                          className="text-cyan-400 hover:underline font-semibold"
+                          className="text-cyan-400 hover:underline font-semibold cursor-pointer"
                         >
                           Open In-Cab PWA ➔
                         </button>
@@ -622,7 +647,7 @@ export default function CommandCenter() {
               <select
                 value={selectedCrewUnit}
                 onChange={(e) => setSelectedCrewUnit(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200"
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 cursor-pointer"
               >
                 <option value="MC-PUMP-01">MC-PUMP-01</option>
                 <option value="MC-PUMP-02">MC-PUMP-02</option>
@@ -659,7 +684,7 @@ export default function CommandCenter() {
             <div className="mt-4">
               <button
                 onClick={() => setCrewProofVerified(true)}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition cursor-pointer"
               >
                 {crewProofVerified
                   ? '✅ SLA Proof Verified (< 5cm Kerb Restored) — Unit Released'
