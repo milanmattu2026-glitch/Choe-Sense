@@ -54,8 +54,10 @@ export default function TelemetryUploadModal({
   const [lng, setLng] = useState(76.7758);
   const [locationName, setLocationName] = useState('Khuda Lahora Causeway / Patiala Ki Rao');
   const [activePreset, setActivePreset] = useState('khuda_lahora');
-  const [sampleLoaded, setSampleLoaded] = useState(false);
-  const [sampleFileName, setSampleFileName] = useState('');
+  const [sampleLoaded, setSampleLoaded] = useState(true);
+  const [sampleFileName, setSampleFileName] = useState('khuda_lahora_submerged_kerb.jpg');
+  const [imageSrc, setImageSrc] = useState('/sample_flood.jpg');
+  const [isScanning, setIsScanning] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isTransmitting, setIsTransmitting] = useState(false);
 
@@ -103,16 +105,28 @@ export default function TelemetryUploadModal({
 
   // Load Sample Flood Image
   const handleLoadSamplePic = () => {
+    setImageSrc('/sample_flood.jpg');
     setSampleLoaded(true);
     setSampleFileName('khuda_lahora_submerged_kerb.jpg');
+    setDepthCm(54);
+    setActivePreset('khuda_lahora');
+    setLat(30.7670);
+    setLng(76.7758);
+    setLocationName('Khuda Lahora Causeway / Patiala Ki Rao');
+    setIsScanning(true);
+    setTimeout(() => setIsScanning(false), 500);
   };
 
   // Custom File Upload Simulation
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      const url = URL.createObjectURL(file);
+      setImageSrc(url);
       setSampleLoaded(true);
       setSampleFileName(file.name);
+      setIsScanning(true);
+      setTimeout(() => setIsScanning(false), 600);
     }
   };
 
@@ -164,15 +178,41 @@ export default function TelemetryUploadModal({
           {/* ============================================================
               SECTION 1: THE WATERLINE VISUALIZER (TOP CANVAS)
           ============================================================ */}
-          <div className="h-[140px] bg-[#344054] rounded-2xl relative overflow-hidden shadow-inner flex flex-col justify-end select-none">
+          <div className="h-[150px] bg-[#1e293b] rounded-2xl relative overflow-hidden shadow-inner flex flex-col justify-end select-none border border-slate-300">
+            {/* Real Flood Image Background */}
+            {imageSrc && (
+              <img
+                src={imageSrc}
+                alt="Submerged street"
+                className="absolute inset-0 w-full h-full object-cover filter contrast-[1.05]"
+              />
+            )}
+
+            {/* Ambient Shadow Overlay for Readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-900/25 to-slate-950/40 pointer-events-none" />
+
+            {/* CV Photogrammetry Kerb Benchmark Tag */}
+            <div className="absolute top-2.5 left-2.5 z-20 px-2 py-0.5 rounded bg-emerald-500/95 text-slate-950 font-mono text-[9px] font-bold border border-emerald-300 shadow-md flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+              <span>KERB BENCHMARK (18cm ref) · CONF: 98.4%</span>
+            </div>
+
+            {/* Laser Scanning Animation Beam */}
+            {isScanning && (
+              <div
+                className="absolute inset-x-0 h-1 bg-cyan-400 shadow-[0_0_15px_#22d3ee] animate-pulse z-30"
+                style={{ top: '48%' }}
+              />
+            )}
+
             {/* Street Level Dashed Reference Line */}
-            <div className="w-full absolute top-[52%] left-0 border-t-2 border-dashed border-white/40 flex items-center justify-between px-2.5 text-[8.5px] font-mono text-white/50 pointer-events-none z-10">
+            <div className="w-full absolute top-[52%] left-0 border-t-2 border-dashed border-white/60 flex items-center justify-between px-2.5 text-[8.5px] font-mono text-white/80 pointer-events-none z-10">
               <span>STREET INVERT RIM</span>
               <span>(±0.0m)</span>
             </div>
 
             {/* The Measuring Gauge (Center Yellow Measuring Stick) */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-1.5 bottom-1.5 w-3.5 bg-amber-400 border border-amber-600 rounded-xs z-10 flex flex-col justify-between py-1.5 shadow-sm pointer-events-none">
+            <div className="absolute left-1/2 -translate-x-1/2 top-1.5 bottom-1.5 w-3.5 bg-amber-400 border border-amber-600 rounded-xs z-20 flex flex-col justify-between py-1.5 shadow-sm pointer-events-none">
               {[...Array(9)].map((_, i) => (
                 <div key={i} className="w-full h-[1.5px] bg-amber-900/70" />
               ))}
@@ -182,7 +222,7 @@ export default function TelemetryUploadModal({
             <motion.div
               animate={{ height: `${waterHeightPct}%` }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="w-full bg-gradient-to-t from-blue-600/80 via-blue-500/60 to-sky-400/50 absolute bottom-0 left-0 border-t border-sky-300/80 flex items-start justify-end pr-2.5 pt-1"
+              className="w-full bg-gradient-to-t from-blue-700/75 via-blue-500/50 to-cyan-400/40 backdrop-blur-[0.5px] border-t-2 border-cyan-300 absolute bottom-0 left-0 flex items-start justify-end pr-2.5 pt-1 z-10"
             >
               {/* Dark Floating Tag Near Waterline */}
               <div className="bg-slate-900/90 text-white font-mono text-[9.5px] font-bold px-2 py-0.5 rounded shadow border border-white/10 tracking-wide">
@@ -196,7 +236,7 @@ export default function TelemetryUploadModal({
             </div>
 
             {/* Bottom-Right Grayed Out Benchmark */}
-            <div className="absolute bottom-2.5 right-2.5 z-20 text-white/40 font-mono text-[9.5px]">
+            <div className="absolute bottom-2.5 right-2.5 z-20 text-white/60 font-mono text-[9.5px]">
               ATK: 12.8m
             </div>
           </div>

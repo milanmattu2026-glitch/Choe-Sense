@@ -3,15 +3,87 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Choe Sense 2.0 — Hydraulic Command Center</title>
+    <title>Choe Sense 2.0 — Municipal Flood Command Center</title>
+    <link rel="icon" type="image/png" href="/choe_sense_logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-      body { margin: 0; background: #0a0f1e; }
+      :root {
+        --bg: #F3E6DA;
+        --bg-end: #EAD7C8;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        background-image: radial-gradient(at 10% 10%, rgba(255, 179, 107, 0.25) 0px, transparent 50%),
+                          radial-gradient(at 90% 85%, rgba(255, 138, 31, 0.2) 0px, transparent 55%),
+                          linear-gradient(135deg, #F3E6DA 0%, #EAD7C8 100%);
+        background-attachment: fixed;
+        color: #1C1C1C;
+        font-family: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 300;
+        min-height: 100vh;
+      }
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #F3E6DA;
+        color: #1C1C1C;
+        z-index: 9999;
+        gap: 16px;
+      }
+      .loader-spinner {
+        width: 44px;
+        height: 44px;
+        border: 3px solid rgba(255, 138, 31, 0.2);
+        border-top-color: #FF8A1F;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .loader-title {
+        font-size: 16px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #1C1C1C;
+      }
+      .loader-sub {
+        font-size: 13px;
+        color: #A8A29E;
+        font-weight: 300;
+      }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-loader">
+        <div class="loader-spinner"></div>
+        <div class="loader-title">Choe Sense 2.0</div>
+        <div class="loader-sub">Initializing Autonomous Hydraulic Engine &amp; 3D Vector Grid...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Fallback: If bundle fails to replace #root within 8s, surface manual reload
+      setTimeout(function() {
+        var loader = document.getElementById('initial-loader');
+        if (loader) {
+          loader.innerHTML = '<div style="max-width:380px;text-align:center;padding:24px;background:#151821;border:1px solid rgba(255,255,255,0.1);border-radius:16px;">' +
+            '<div style="font-size:24px;margin-bottom:8px;">⚡</div>' +
+            '<div style="font-weight:bold;font-size:16px;margin-bottom:6px;color:#fff;">Choe Sense Display Refresh</div>' +
+            '<div style="font-size:12px;color:#94a3b8;margin-bottom:16px;">The connection was re-established. Click below to launch the live grid.</div>' +
+            '<button onclick="window.location.reload()" style="background:linear-gradient(to right,#f97316,#f59e0b);color:#fff;border:none;padding:8px 18px;border-radius:10px;font-weight:bold;cursor:pointer;font-size:12px;">Launch Dashboard</button>' +
+            '</div>';
+        }
+      }, 8000);
+    </script>
   </body>
 </html>

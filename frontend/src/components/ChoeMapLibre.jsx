@@ -438,7 +438,7 @@ export default function ChoeMapLibre({
     }
   }, [nodes, sarEnabled]);
 
-  // 5. Render Interactive Flood Node Markers
+  // 5. Render Interactive Flood Node Markers with Glowy Rounded & Rotating Animation
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -452,79 +452,158 @@ export default function ChoeMapLibre({
     if (!Array.isArray(nodes)) return;
 
     nodes.forEach((node) => {
+      if (!node || typeof node.lng !== 'number' || typeof node.lat !== 'number' || isNaN(node.lng) || isNaN(node.lat)) return;
       const depth = node.depthCm ?? node.current_depth_cm ?? 0;
       const choke = node.choke ?? node.chokePct ?? node.gully_choke_pct ?? 0;
       const eta = node.backflowEtaMins ?? node.backflow_eta_mins ?? 'STABLE';
       const hasShockwave = Boolean(node.sukhnaShockwaveEtaMins || node.sukhnaWaveEtaMins);
+      const isSelected = selectedNodeId === node.id;
 
       const isCritical = node.status === 'CRITICAL' || depth >= 45;
       const isWarning = node.status === 'WARNING' || depth >= 28;
-      const color = isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+      const color = node.isCitizenReport ? '#ea580c' : isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+      const glowRgba = node.isCitizenReport ? 'rgba(234, 88, 12, 0.85)' : isCritical ? 'rgba(239, 68, 68, 0.85)' : isWarning ? 'rgba(245, 158, 11, 0.85)' : 'rgba(16, 185, 129, 0.85)';
 
+      // HUD Marker Outer Container
       const el = document.createElement('div');
+      el.className = 'hud-marker-container';
       el.style.cssText = `
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: ${isSelected ? 60 : 25};
+        user-select: none;
+        transition: transform 200ms ease;
+      `;
+
+      // 1. Concentric Sonar Pulse Wave
+      const pulseRing = document.createElement('div');
+      pulseRing.className = 'hud-sonar-pulse';
+      pulseRing.style.cssText = `
+        width: 48px;
+        height: 48px;
+        border: 2px solid ${color};
+        box-shadow: 0 0 14px ${color};
+      `;
+      el.appendChild(pulseRing);
+
+      // 2. Glowy Rotating Dashed Radar Ring
+      const rotatingRing = document.createElement('div');
+      rotatingRing.className = 'hud-rotating-ring';
+      rotatingRing.style.cssText = `
+        width: ${isSelected ? '58px' : '48px'};
+        height: ${isSelected ? '58px' : '48px'};
+        border: ${isSelected ? '2.5px' : '2px'} dashed ${color};
+        box-shadow: 0 0 16px ${glowRgba}, inset 0 0 8px ${glowRgba};
+      `;
+      el.appendChild(rotatingRing);
+
+      // 3. Counter-Rotating Inner Accent Ring (if selected or critical)
+      if (isSelected || isCritical) {
+        const counterRing = document.createElement('div');
+        counterRing.className = 'hud-counter-ring';
+        counterRing.style.cssText = `
+          width: ${isSelected ? '66px' : '56px'};
+          height: ${isSelected ? '66px' : '56px'};
+          border: 1.5px dotted ${isSelected ? '#ffffff' : color};
+          box-shadow: 0 0 10px ${isSelected ? '#ffffff' : color};
+        `;
+        el.appendChild(counterRing);
+      }
+
+      // 4. Glowy Core Badge with Bold Depth Readout
+      const coreBadge = document.createElement('div');
+      coreBadge.style.cssText = `
+        position: relative;
+        z-index: 10;
         background: ${color};
         color: #ffffff;
-        font-weight: 700;
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 999px;
+        font-family: 'Outfit', system-ui, sans-serif;
+        font-weight: 900;
+        font-size: ${isSelected ? '13px' : '12px'};
+        padding: ${isSelected ? '5px 12px' : '4px 9px'};
+        border-radius: 9999px;
         border: 2px solid #ffffff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-        cursor: pointer;
+        box-shadow: 0 0 20px ${glowRgba}, 0 0 32px ${glowRgba}, 0 4px 14px rgba(0,0,0,0.5);
         white-space: nowrap;
         display: flex;
         align-items: center;
         gap: 4px;
+        transform: ${isSelected ? 'scale(1.08)' : 'scale(1)'};
+        transition: transform 200ms ease, box-shadow 200ms ease;
       `;
 
       if (node.isCitizenReport) {
-        el.style.background = '#ea580c';
-        el.style.boxShadow = '0 0 16px rgba(234, 88, 12, 0.9)';
-        el.style.border = '2px solid #ffedd5';
-        el.innerHTML = `<span>📸</span><span>${depth}cm</span><span style="font-size:8.5px; background:#fff; color:#ea580c; font-weight:800; padding:1px 3px; border-radius:3px;">GEO-TAG</span>`;
+        coreBadge.innerHTML = `<span>📸</span><span>${depth}</span><span style="font-size:9px; opacity:0.9;">cm</span><span style="font-size:8.5px; background:#fff; color:#ea580c; font-weight:900; padding:1px 4px; border-radius:4px; margin-left:2px;">GEO</span>`;
       } else if (hasShockwave) {
         const waveEta = node.sukhnaShockwaveEtaMins || node.sukhnaWaveEtaMins;
-        el.innerHTML = `<span>${depth}cm</span><span style="font-size:9.5px; background:#f59e0b; color:#78350f; font-weight:800; border-radius:4px; padding:1px 4px; border:1px solid #d97706; animation:pulse 1.5s infinite;">🌊 T-${waveEta}m</span>`;
+        coreBadge.innerHTML = `<span>${depth}</span><span style="font-size:9.5px; opacity:0.9;">cm</span><span style="font-size:9px; background:#fef3c7; color:#92400e; font-weight:900; border-radius:4px; padding:1px 4px; border:1px solid #f59e0b;">🌊 T-${waveEta}m</span>`;
       } else {
-        el.innerHTML = `<span>${depth}cm</span>`;
+        coreBadge.innerHTML = `<span>${depth}</span><span style="font-size:10px; font-weight:800; opacity:0.9;">cm</span>`;
       }
+      el.appendChild(coreBadge);
+
+      el.addEventListener('mouseenter', () => {
+        coreBadge.style.transform = 'scale(1.15)';
+      });
+      el.addEventListener('mouseleave', () => {
+        coreBadge.style.transform = isSelected ? 'scale(1.08)' : 'scale(1)';
+      });
 
       el.addEventListener('click', () => {
         if (onSelectNode) onSelectNode(node.id);
         map.flyTo({
-          center: [node.lng, node.lat],
-          zoom: mapMode === 'liberty_3d' ? 16 : 14.5,
-          pitch: mapMode === 'liberty_3d' ? 60 : 0,
-          duration: 1000,
+          center: [node.lng, node.lat + 0.003],
+          zoom: mapMode === 'liberty_3d' ? 15.5 : 14.5,
+          pitch: mapMode === 'liberty_3d' ? 45 : 0,
+          duration: 800,
         });
       });
 
       const shockwaveHtml = hasShockwave
-        ? `<div style="margin-top: 5px; padding: 4px 6px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; font-weight: 700; font-size: 10px; animation: pulse 2s infinite;">🌊 Sukhna Gate Shockwave Arrival: T-${node.sukhnaShockwaveEtaMins || node.sukhnaWaveEtaMins}m</div>`
+        ? `<div style="margin-top: 6px; padding: 5px 8px; background: #fef3c7; border: 1.5px solid #f59e0b; border-radius: 8px; color: #92400e; font-weight: 800; font-size: 11px;">🌊 Sukhna Gate Shockwave: Hits in T-${node.sukhnaShockwaveEtaMins || node.sukhnaWaveEtaMins} mins!</div>`
         : '';
 
       const sarHtml = sarEnabled
-        ? `<div style="margin-top: 4px; padding: 3px 6px; background: #ecfeff; border: 1px solid #06b6d4; border-radius: 5px; color: #0891b2; font-size: 10px; font-weight: 700;">📡 Sentinel-1 SAR: -${(11.5 + (depth / 10.0) * 1.45).toFixed(1)} dB (Radar Verified)</div>`
+        ? `<div style="margin-top: 5px; padding: 4px 8px; background: #ecfeff; border: 1.5px solid #06b6d4; border-radius: 8px; color: #0891b2; font-size: 11px; font-weight: 800;">🛰️ Satellite Radar: -${(11.5 + (depth / 10.0) * 1.45).toFixed(1)} dB (Verified)</div>`
         : '';
 
       const substationHtml = node.substationName
-        ? `<div style="margin-top: 4px; font-size: 10.5px; color: #374151;">⚡ <b>Substation:</b> ${node.substationName}</div>`
+        ? `<div style="margin-top: 5px; font-size: 11px; color: #1e293b; background: #f1f5f9; padding: 4px 8px; border-radius: 8px; font-weight: 600;">⚡ <b>Substation:</b> ${node.substationName} (${node.substationPlinthCm || 50}cm plinth)</div>`
         : '';
 
-      const ambulanceHtml = `<div style="margin-top: 3px; font-size: 10.5px; color: ${node.ambulanceSafe !== false ? '#15803d' : '#b91c1c'}; font-weight: 600;">🚑 ${node.ambulanceSafe !== false ? 'Safe for Ambulances (<28cm)' : 'Green Corridor V4 Detour Active'}</div>`;
+      const ambulanceHtml = `<div style="margin-top: 4px; font-size: 11px; color: ${node.ambulanceSafe !== false ? '#15803d' : '#b91c1c'}; font-weight: 700; background: ${node.ambulanceSafe !== false ? '#f0fdf4' : '#fef2f2'}; padding: 4px 8px; border-radius: 8px; border: 1px solid ${node.ambulanceSafe !== false ? '#bbf7d0' : '#fecaca'};">🚑 ${node.ambulanceSafe !== false ? 'Safe for Emergency Ambulances' : 'V4 Green-Corridor Bypass Required'}</div>`;
 
       const citizenProofHtml = node.isCitizenReport
-        ? `<div style="margin-top: 5px; padding: 4px 6px; background: #fff7ed; border: 1px solid #fdba74; border-radius: 6px; color: #9a3412; font-weight: 700; font-size: 10px;">📸 Geo-Tagged Citizen Telemetry Ingested<br/><span style="color:#64748b; font-weight:normal;">[${node.lat.toFixed(4)}°N, ${node.lng.toFixed(4)}°E]</span></div>`
+        ? `<div style="margin-top: 6px; padding: 5px 8px; background: #fff7ed; border: 1.5px solid #fdba74; border-radius: 8px; color: #9a3412; font-weight: 800; font-size: 11px;">📸 Geo-Tagged Citizen Photo Proof<br/><span style="color:#64748b; font-weight:600;">[${node.lat.toFixed(4)}°N, ${node.lng.toFixed(4)}°E]</span></div>`
         : '';
 
-      const popup = new maplibregl.Popup({ offset: 18 }).setHTML(`
-        <div style="font-family: Inter, sans-serif; color: #111827; padding: 5px; font-size: 12px; min-width: 190px;">
-          <div style="font-weight: 700; margin-bottom: 2px; font-size: 13px;">${node.name}</div>
-          <div style="color: #6b7280; font-size: 11px; margin-bottom: 6px;">${node.sector} · ${node.outfall || 'N-Choe'}</div>
-          <div><b>Water Depth:</b> ${depth} cm</div>
-          <div><b>Gully Choke:</b> ${choke}%</div>
-          <div style="color: #dc2626; font-weight: 600;"><b>Backflow ETA:</b> ${eta === 'STABLE' ? 'STABLE' : `T-${eta}m`}</div>
+      const popup = new maplibregl.Popup({ offset: 28, closeButton: true, maxWidth: '290px', anchor: 'bottom' }).setHTML(`
+        <div style="font-family: 'Outfit', sans-serif; color: #0f172a; padding: 2px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+            <span style="font-size: 11px; font-weight: 800; font-family: monospace; color: #ea580c; text-transform: uppercase; letter-spacing: 0.5px;">${node.code || 'NODE'} · ${node.sector}</span>
+            <span style="font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 999px; background: ${color}22; color: ${color}; border: 1px solid ${color}44;">${node.status || (depth >= 45 ? 'CRITICAL' : depth >= 28 ? 'WARNING' : 'STABLE')}</span>
+          </div>
+          <div style="font-weight: 900; font-size: 15px; color: #0f172a; margin-bottom: 8px; line-height: 1.25;">${node.name}</div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #f8fafc; padding: 8px 10px; border-radius: 12px; border: 1.5px solid #e2e8f0; margin-bottom: 7px;">
+            <div>
+              <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Water Depth</div>
+              <div style="font-size: 18px; font-weight: 900; color: ${color}; line-height: 1.1; margin-top: 2px;">${depth} <span style="font-size: 11px; font-weight: 700; color: #64748b;">cm</span></div>
+            </div>
+            <div>
+              <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Drain Choke</div>
+              <div style="font-size: 18px; font-weight: 900; color: #d97706; line-height: 1.1; margin-top: 2px;">${choke}%</div>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; font-weight: 700; color: #b91c1c; margin-bottom: 4px; padding: 5px 8px; background: #fef2f2; border-radius: 8px; border: 1px solid #fecaca;">
+            <span>Surge Backflow:</span>
+            <span style="font-size: 13px; font-weight: 900;">${eta === 'STABLE' ? 'STABLE' : `T-${eta} mins`}</span>
+          </div>
+
           ${citizenProofHtml}
           ${sarHtml}
           ${shockwaveHtml}
@@ -540,7 +619,7 @@ export default function ChoeMapLibre({
 
       markersRef.current.push(marker);
     });
-  }, [nodes, mapMode, sarEnabled]);
+  }, [nodes, mapMode, sarEnabled, selectedNodeId]);
 
   // 5b. Render Overpass GIS Emergency Hospital Markers
   useEffect(() => {
@@ -556,6 +635,7 @@ export default function ChoeMapLibre({
     if (!showHospitals) return;
 
     hospitals.forEach((hosp) => {
+      if (!hosp || typeof hosp.lng !== 'number' || typeof hosp.lat !== 'number' || isNaN(hosp.lng) || isNaN(hosp.lat)) return;
       const el = document.createElement('div');
       el.style.cssText = `
         background: #e11d48;
@@ -643,7 +723,7 @@ export default function ChoeMapLibre({
   }, [flyToCoords, mapMode]);
 
   return (
-    <div className={`relative w-full h-[380px] rounded-2xl overflow-hidden border transition-all duration-500 shadow-md ${
+    <div className={`relative w-full h-[420px] rounded-2xl overflow-hidden border transition-all duration-500 shadow-md ${
       neonMode 
         ? 'border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.15)] bg-slate-950' 
         : 'border-slate-200/90 bg-slate-50'
@@ -712,12 +792,19 @@ export default function ChoeMapLibre({
         </button>
       </div>
 
-      {/* Live SAR Backscatter Telemetry Readout Pill (Bottom of Map) */}
+      {/* Live SAR Backscatter Telemetry Readout Pill (Bottom-Right, Steady Non-Blinking) */}
       {sarEnabled && (
-        <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-10 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 border border-cyan-500/40 text-cyan-300 text-[10.5px] font-mono shadow-lg backdrop-blur-md animate-pulse">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="font-bold">📡 SAR RADAR TELEMETRY:</span>
-          <span>VH Backscatter: -18.4 dB | Cloud Cover Penetrated | Night Low-Light CLAHE Active</span>
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-950/95 border border-cyan-400/80 text-cyan-200 text-xs font-mono font-bold shadow-2xl backdrop-blur-lg">
+          <div className="relative flex items-center justify-center">
+            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+            <span className="absolute w-4 h-4 rounded-full border border-cyan-400 animate-ping opacity-60" />
+          </div>
+          <span className="font-black text-cyan-300 tracking-wider">📡 SAR RADAR:</span>
+          <span className="text-white">VH: <strong className="text-cyan-300 font-bold">-18.4 dB</strong></span>
+          <span className="text-slate-500">|</span>
+          <span className="text-emerald-300 font-bold">Cloud Penetration: 100%</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-amber-300 font-bold">Night CLAHE: Active</span>
         </div>
       )}
 
