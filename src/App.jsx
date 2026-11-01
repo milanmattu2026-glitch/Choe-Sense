@@ -19,43 +19,77 @@ import {
   Send,
   ShieldCheck,
   Radio,
-  Key
+  Key,
+  RotateCw,
+  Box,
+  Monitor,
+  Smartphone,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
-import {
-  Map as MapLibreMap,
-  NavigationControl as MapLibreNavControl,
-  Marker as MapLibreMarker,
-  setWorkerUrl
-} from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibreglWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
-
-if (setWorkerUrl) {
-  setWorkerUrl(maplibreglWorker);
-}
 
 // ============================================================================
 // ANTIGRAVITY CONFIGURATION BLOCK (100% COMPILER-SAFE, ZERO import.meta)
-// Plug your Map API Key or Custom Logo URL here or via window.__ENV__ / process.env
+// OpenFreeMap 3D Liberty & 2D Bright Vector Styles are locked and never
+// overridden by external API keys.
 // ============================================================================
 const ENV =
   (typeof window !== 'undefined' && window.__ENV__) ||
   (typeof process !== 'undefined' && process.env) ||
   {};
 
+export const OPENFREEMAP_VECTOR_STYLES = {
+  liberty_3d: {
+    key: 'liberty_3d',
+    label: '3D Liberty Mode',
+    badge: 'OpenFreeMap 3D',
+    styleUrl: 'https://tiles.openfreemap.org/styles/liberty',
+    pitch: 60,
+    bearing: -20,
+    zoom: 15.6,
+    fallbackRaster: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+  },
+  bright_2d: {
+    key: 'bright_2d',
+    label: '2D Bright Mode',
+    badge: 'OpenFreeMap Bright',
+    styleUrl: 'https://tiles.openfreemap.org/styles/bright',
+    pitch: 0,
+    bearing: 0,
+    zoom: 13.6,
+    fallbackRaster: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+  },
+  positron_2d: {
+    key: 'positron_2d',
+    label: 'Positron Light',
+    badge: 'OpenFreeMap Positron',
+    styleUrl: 'https://tiles.openfreemap.org/styles/positron',
+    pitch: 0,
+    bearing: 0,
+    zoom: 13.6,
+    fallbackRaster: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+  },
+  dark_hud: {
+    key: 'dark_hud',
+    label: 'Dark HUD 3D',
+    badge: 'OpenFreeMap Dark',
+    styleUrl: 'https://tiles.openfreemap.org/styles/dark',
+    pitch: 52,
+    bearing: -15,
+    zoom: 15.0,
+    fallbackRaster: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+  }
+};
+
 export const ANTIGRAVITY_CONFIG = {
   BRAND_NAME: 'Choe Sense',
   // Set a custom image path (e.g. "/logo.png") or leave empty to use the built-in Hydro-Shield SVG Logo
   BRAND_LOGO_URL: ENV.VITE_BRAND_LOGO_URL || ENV.REACT_APP_BRAND_LOGO_URL || '',
-  // Optional Map API Key (MapTiler / Mapbox / Stadia / Custom / OpenMap)
-  MAP_API_KEY:
-    ENV.VITE_MAP_API_KEY ||
-    ENV.REACT_APP_MAP_API_KEY ||
-    ENV.VITE_OPEN_MAP_API_KEY ||
-    ENV.OPEN_MAP_API_KEY ||
-    '',
-  // Optional custom raster/vector tile template (uses {z}/{x}/{y} and {key})
-  CUSTOM_MAP_TILE_URL: ENV.VITE_CUSTOM_MAP_TILE_URL || '',
+  // OpenFreeMap Official Keyless Vector Styles (Locked — never overwritten by API keys)
+  OPENFREEMAP_LIBERTY_3D_URL: 'https://tiles.openfreemap.org/styles/liberty',
+  OPENFREEMAP_BRIGHT_2D_URL: 'https://tiles.openfreemap.org/styles/bright',
+  OPENFREEMAP_POSITRON_URL: 'https://tiles.openfreemap.org/styles/positron',
+  OPENFREEMAP_DARK_URL: 'https://tiles.openfreemap.org/styles/dark',
   // Live Weather & GIS Endpoints
   OPEN_METEO_URL:
     'https://api.open-meteo.com/v1/forecast?latitude=30.7333&longitude=76.7794&hourly=precipitation,rain,temperature_2m&timezone=auto&forecast_days=1',
@@ -638,265 +672,46 @@ function TelemetryUploadModal({ isOpen, onClose, onTransmitReport }) {
 }
 
 // ============================================================================
-// OFFICIAL OPENFREEMAP VECTOR STYLES CONFIGURATION (ZERO-KEY, 3D EXTENSIONS)
+// SAFE TOP-LOCATION CHECK FOR NATIVE MAPLIBRE GL JS vs SANDBOX FALLBACK
+// On localhost:5173, canUseNativeMapLibre() is TRUE and runs 100% native WebGL
+// MapLibre GL JS with https://tiles.openfreemap.org/styles/liberty & bright!
 // ============================================================================
-const OPENFREEMAP_VECTOR_STYLES = {
-  liberty_3d: {
-    key: 'liberty_3d',
-    label: '3D Liberty Mode',
-    style: 'https://tiles.openfreemap.org/styles/liberty',
-    pitch: 60,
-    bearing: -20,
-    zoom: 15.6,
-    has3dBuildings: true
-  },
-  bright_2d: {
-    key: 'bright_2d',
-    label: '2D Bright Mode',
-    style: 'https://tiles.openfreemap.org/styles/bright',
-    pitch: 0,
-    bearing: 0,
-    zoom: 13.6,
-    has3dBuildings: false
-  },
-  positron_2d: {
-    key: 'positron_2d',
-    label: 'Positron Light',
-    style: 'https://tiles.openfreemap.org/styles/positron',
-    pitch: 0,
-    bearing: 0,
-    zoom: 13.6,
-    has3dBuildings: false
-  },
-  dark_hud: {
-    key: 'dark_hud',
-    label: 'Dark HUD 3D',
-    style: 'https://tiles.openfreemap.org/styles/dark',
-    pitch: 45,
-    bearing: -15,
-    zoom: 14.2,
-    has3dBuildings: true
-  }
-};
-
-// Automatic 3D building fill-extrusion setup on MapLibre vector tiles
-function setup3DBuildingExtrusions(map) {
-  if (!map || !map.isStyleLoaded || !map.isStyleLoaded() || map.getLayer('3d-buildings')) return;
-  const layers = map.getStyle().layers || [];
-  let firstSymbolId;
-  for (let i = 0; i < layers.length; i++) {
-    if (layers[i].type === 'symbol') {
-      firstSymbolId = layers[i].id;
-      break;
-    }
-  }
-
-  if (map.getSource('openmaptiles')) {
-    try {
-      map.addLayer(
-        {
-          id: '3d-buildings',
-          source: 'openmaptiles',
-          'source-layer': 'building',
-          type: 'fill-extrusion',
-          minzoom: 13,
-          paint: {
-            'fill-extrusion-color': [
-              'interpolate',
-              ['linear'],
-              ['coalesce', ['get', 'render_height'], ['get', 'height'], 15],
-              0,
-              '#e2e8f0',
-              30,
-              '#cbd5e1',
-              70,
-              '#94a3b8'
-            ],
-            'fill-extrusion-height': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              13,
-              0,
-              14,
-              ['coalesce', ['get', 'render_height'], ['get', 'height'], 15]
-            ],
-            'fill-extrusion-base': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              13,
-              0,
-              14,
-              ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]
-            ],
-            'fill-extrusion-opacity': 0.85
-          }
-        },
-        firstSymbolId
-      );
-    } catch (e) {
-      // ignore
-    }
-  }
-}
-
-function createGeoJSONCircle(center, radiusInMeters, points = 36) {
-  const coords = [];
-  const distanceX = radiusInMeters / (111320 * Math.cos((center[1] * Math.PI) / 180));
-  const distanceY = radiusInMeters / 110540;
-  for (let i = 0; i <= points; i++) {
-    const theta = (i / points) * (2 * Math.PI);
-    const x = center[0] + distanceX * Math.cos(theta);
-    const y = center[1] + distanceY * Math.sin(theta);
-    coords.push([x, y]);
-  }
-  return [coords];
-}
-
-function applyHydrologyLayers(map, nodes, showPipesAndDetours, sarLayerEnabled) {
-  if (!map || !map.isStyleLoaded || !map.isStyleLoaded()) return;
-
+function canUseNativeMapLibre() {
+  if (typeof window === 'undefined') return false;
   try {
-    if (showPipesAndDetours) {
-      if (!map.getSource('choe-hydrology-lines')) {
-        map.addSource('choe-hydrology-lines', {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                type: 'Feature',
-                properties: { type: 'pipe' },
-                geometry: {
-                  type: 'LineString',
-                  coordinates: [
-                    [76.7751, 30.7649],
-                    [76.7794, 30.7333],
-                    [76.7561, 30.7254]
-                  ]
-                }
-              },
-              {
-                type: 'Feature',
-                properties: { type: 'pipe' },
-                geometry: {
-                  type: 'LineString',
-                  coordinates: [
-                    [76.8013, 30.7056],
-                    [76.7972, 30.7099]
-                  ]
-                }
-              },
-              {
-                type: 'Feature',
-                properties: { type: 'detour' },
-                geometry: {
-                  type: 'LineString',
-                  coordinates: [
-                    [76.7845, 30.7385],
-                    [76.7815, 30.7358],
-                    [76.7794, 30.7333]
-                  ]
-                }
-              }
-            ]
-          }
-        });
-      }
-
-      if (!map.getLayer('choe-hydrology-pipes')) {
-        map.addLayer({
-          id: 'choe-hydrology-pipes',
-          type: 'line',
-          source: 'choe-hydrology-lines',
-          filter: ['==', ['get', 'type'], 'pipe'],
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#DC2626',
-            'line-width': 4,
-            'line-dasharray': [2, 2],
-            'line-opacity': 0.95
-          }
-        });
-      }
-
-      if (!map.getLayer('choe-hydrology-detours')) {
-        map.addLayer({
-          id: 'choe-hydrology-detours',
-          type: 'line',
-          source: 'choe-hydrology-lines',
-          filter: ['==', ['get', 'type'], 'detour'],
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#059669',
-            'line-width': 4.5,
-            'line-dasharray': [3, 2],
-            'line-opacity': 0.95
-          }
-        });
-      }
-    }
-
-    if (sarLayerEnabled && nodes && nodes.length > 0) {
-      const sarFeatures = nodes.map((n) => ({
-        type: 'Feature',
-        properties: { depth: n.depthCm, sarVh: n.sarVhDb },
-        geometry: {
-          type: 'Polygon',
-          coordinates: createGeoJSONCircle([n.lng, n.lat], 260 + n.depthCm * 6)
-        }
-      }));
-
-      if (!map.getSource('choe-sar-masks')) {
-        map.addSource('choe-sar-masks', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: sarFeatures }
-        });
-      } else {
-        map.getSource('choe-sar-masks').setData({
-          type: 'FeatureCollection',
-          features: sarFeatures
-        });
-      }
-
-      if (!map.getLayer('choe-sar-fill')) {
-        map.addLayer({
-          id: 'choe-sar-fill',
-          type: 'fill',
-          source: 'choe-sar-masks',
-          paint: {
-            'fill-color': '#06b6d4',
-            'fill-opacity': 0.22
-          }
-        });
-      }
-
-      if (!map.getLayer('choe-sar-outline')) {
-        map.addLayer({
-          id: 'choe-sar-outline',
-          type: 'line',
-          source: 'choe-sar-masks',
-          paint: {
-            'line-color': '#0284c7',
-            'line-width': 2.5,
-            'line-opacity': 0.9
-          }
-        });
-      }
-    } else if (!sarLayerEnabled) {
-      if (map.getLayer('choe-sar-fill')) map.removeLayer('choe-sar-fill');
-      if (map.getLayer('choe-sar-outline')) map.removeLayer('choe-sar-outline');
-      if (map.getSource('choe-sar-masks')) map.removeSource('choe-sar-masks');
-    }
+    void window.top.location.href;
+    return true;
   } catch (err) {
-    // ignore
+    return false;
   }
 }
 
+function createCirclePolygonGeoJSON(lng, lat, radiusMeters, points = 36) {
+  const coords = [];
+  const distanceX = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180));
+  const distanceY = radiusMeters / 110574;
+  for (let i = 0; i < points; i++) {
+    const theta = (i / points) * (2 * Math.PI);
+    const x = distanceX * Math.cos(theta);
+    const y = distanceY * Math.sin(theta);
+    coords.push([lng + x, lat + y]);
+  }
+  coords.push(coords[0]);
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [coords]
+    },
+    properties: {}
+  };
+}
+
 // ============================================================================
-// 2D/3D MAP ENGINE WITH GLOWY, ROTATING & PULSING HYDRO-RADAR BEACONS
-// Locked to Official OpenFreeMap Styles + 3D Pitch 60° / 2D Flat 0° & 360° Orbit
+// EXACT OPENFREEMAP 3D LIBERTY & 2D BRIGHT MAPLIBRE GL JS ENGINE
+// - Never overridden by external API keys
+// - Enhances 3D fill-extrusion buildings on OpenFreeMap Liberty & Dark styles
+// - Renders Glowy, Rotating & Pulsing Hydro-Radar Beacons (No Hospitals)
 // ============================================================================
 function ChoeMapLibreCanvas({
   nodes,
@@ -910,169 +725,351 @@ function ChoeMapLibreCanvas({
   showPipesAndDetours
 }) {
   const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markersRef = useRef([]);
-  const orbitAnimRef = useRef(null);
+  const maplibreInstanceRef = useRef(null);
+  const maplibreMarkersRef = useRef([]);
+  const leafletInstanceRef = useRef(null);
+  const leafletLayerGroupRef = useRef(null);
+  const leafletTileLayerRef = useRef(null);
+  const orbitFrameRef = useRef(null);
 
-  const initialCfg =
+  const [nativeMapLibreAllowed, setNativeMapLibreAllowed] = useState(() => canUseNativeMapLibre());
+  const [maplibreReady, setMaplibreReady] = useState(
+    typeof window !== 'undefined' && Boolean(window.maplibregl)
+  );
+  const [leafletReady, setLeafletReady] = useState(
+    typeof window !== 'undefined' && Boolean(window.L)
+  );
+  const [isOrbiting3D, setIsOrbiting3D] = useState(false);
+  const [currentPitch, setCurrentPitch] = useState(60);
+  const [currentBearing, setCurrentBearing] = useState(-20);
+
+  const activeStyleCfg =
     OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
-  const [isPitched, setIsPitched] = useState(initialCfg.pitch > 20);
-  const [isOrbiting, setIsOrbiting] = useState(false);
 
-  // Initialize MapLibre GL Map locked to OpenFreeMap Vector Styles
-  useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
+  // Helper to inject 3D Building Extrusion & Custom GeoJSON Layers into OpenFreeMap Style
+  const syncMapLibreLayers = (map, currentNodes, sarEnabled, pipesEnabled, modeKey) => {
+    if (!map || !map.isStyleLoaded()) return;
 
     try {
-      const targetCfg =
-        OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
-      const initialCenter = selectedNode
-        ? [selectedNode.lng, selectedNode.lat]
-        : [76.7794, 30.7333];
+      // 1. Ensure 3D Extruded Buildings are active in 3D Liberty & Dark HUD modes
+      const style = map.getStyle();
+      const layers = (style && style.layers) || [];
+      const has3DBuildingLayer = layers.some(
+        (l) => l.type === 'fill-extrusion' && (l.id.includes('building') || l.id.includes('3d'))
+      );
 
-      const map = new MapLibreMap({
-        container: mapContainerRef.current,
-        style: targetCfg.style,
-        center: initialCenter,
-        zoom: targetCfg.zoom,
-        pitch: targetCfg.pitch,
-        bearing: targetCfg.bearing,
-        attributionControl: false
-      });
-
-      map.addControl(new MapLibreNavControl({ visualizePitch: true }), 'bottom-right');
-
-      map.on('style.load', () => {
-        applyHydrologyLayers(map, nodes, showPipesAndDetours, sarLayerEnabled);
-        if (targetCfg.has3dBuildings) {
-          setup3DBuildingExtrusions(map);
+      if (!has3DBuildingLayer && style && style.sources) {
+        const vectorSourceKey = Object.keys(style.sources).find(
+          (k) => style.sources[k].type === 'vector'
+        );
+        if (vectorSourceKey && !map.getLayer('choe-openfreemap-3d-buildings')) {
+          map.addLayer({
+            id: 'choe-openfreemap-3d-buildings',
+            source: vectorSourceKey,
+            'source-layer': 'building',
+            type: 'fill-extrusion',
+            minzoom: 13,
+            paint: {
+              'fill-extrusion-color':
+                modeKey === 'dark_hud'
+                  ? '#1e293b'
+                  : [
+                      'interpolate',
+                      ['linear'],
+                      ['coalesce', ['get', 'render_height'], 16],
+                      0,
+                      '#e2e8f0',
+                      25,
+                      '#cbd5e1',
+                      60,
+                      '#94a3b8'
+                    ],
+              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 18],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+              'fill-extrusion-opacity': modeKey === 'bright_2d' || modeKey === 'positron_2d' ? 0.0 : 0.88
+            }
+          });
         }
-      });
-
-      mapInstanceRef.current = map;
-
-      const handleResize = () => {
-        if (mapInstanceRef.current) mapInstanceRef.current.resize();
-      };
-      window.addEventListener('resize', handleResize);
-      setTimeout(() => {
-        if (mapInstanceRef.current) mapInstanceRef.current.resize();
-      }, 250);
-
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        if (orbitAnimRef.current) {
-          cancelAnimationFrame(orbitAnimRef.current);
-          orbitAnimRef.current = null;
-        }
-        markersRef.current.forEach((m) => {
-          try {
-            m.remove();
-          } catch (e) {}
+      } else {
+        // Make sure existing OpenFreeMap Liberty 3D building extrusion layers are crisp and visible
+        layers.forEach((l) => {
+          if (l.type === 'fill-extrusion') {
+            try {
+              map.setPaintProperty(
+                l.id,
+                'fill-extrusion-opacity',
+                modeKey === 'bright_2d' || modeKey === 'positron_2d' ? 0.0 : 0.88
+              );
+            } catch (e) {
+              // ignore
+            }
+          }
         });
-        try {
-          map.remove();
-        } catch (e) {}
-        mapInstanceRef.current = null;
-      };
-    } catch (err) {
-      console.error('MapLibre GL init error:', err);
-    }
-  }, []);
-
-  // Update Hydrology & SAR Overlays when telemetry changes
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !map.isStyleLoaded || !map.isStyleLoaded()) return;
-    applyHydrologyLayers(map, nodes, showPipesAndDetours, sarLayerEnabled);
-  }, [nodes, showPipesAndDetours, sarLayerEnabled]);
-
-  // Mode Switch
-  const handleSwitchMode = (modeKey) => {
-    onChangeMapMode(modeKey);
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    const targetCfg =
-      OPENFREEMAP_VECTOR_STYLES[modeKey] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
-    try {
-      map.setStyle(targetCfg.style);
-      map.easeTo({
-        pitch: targetCfg.pitch,
-        bearing: targetCfg.bearing,
-        zoom: targetCfg.zoom,
-        duration: 1000
-      });
-      setIsPitched(targetCfg.pitch > 20);
-
-      map.once('style.load', () => {
-        applyHydrologyLayers(map, nodes, showPipesAndDetours, sarLayerEnabled);
-        if (targetCfg.has3dBuildings) {
-          setup3DBuildingExtrusions(map);
-        }
-      });
-    } catch (e) {
-      console.warn('Mode switch error:', e);
-    }
-  };
-
-  // Interactive 3D Pitch 60° / 2D Flat 0° Toggle
-  const togglePitch = () => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    const currentPitch = map.getPitch();
-    if (currentPitch > 20) {
-      map.easeTo({ pitch: 0, duration: 800 });
-      setIsPitched(false);
-    } else {
-      map.easeTo({ pitch: 60, bearing: map.getBearing() || -20, duration: 800 });
-      setIsPitched(true);
-    }
-  };
-
-  // Interactive 360° Cinematic Orbit Animation
-  const toggleOrbit = () => {
-    setIsOrbiting((prev) => !prev);
-  };
-
-  useEffect(() => {
-    if (!isOrbiting) {
-      if (orbitAnimRef.current) {
-        cancelAnimationFrame(orbitAnimRef.current);
-        orbitAnimRef.current = null;
       }
+
+      // 2. SkyPierce™ SAR Radar Cloud-Penetrating Water Polygons
+      const sarFeatures = sarEnabled
+        ? currentNodes.map((n) =>
+            createCirclePolygonGeoJSON(n.lng, n.lat, 240 + n.depthCm * 5.5)
+          )
+        : [];
+      const sarGeoJSON = { type: 'FeatureCollection', features: sarFeatures };
+
+      if (map.getSource('choe-sar-source')) {
+        map.getSource('choe-sar-source').setData(sarGeoJSON);
+      } else {
+        map.addSource('choe-sar-source', { type: 'geojson', data: sarGeoJSON });
+        map.addLayer({
+          id: 'choe-sar-fill',
+          type: 'fill',
+          source: 'choe-sar-source',
+          paint: {
+            'fill-color': '#06b6d4',
+            'fill-opacity': 0.24
+          }
+        });
+        map.addLayer({
+          id: 'choe-sar-outline',
+          type: 'line',
+          source: 'choe-sar-source',
+          paint: {
+            'line-color': '#0284c7',
+            'line-width': 2.5,
+            'line-dasharray': [3, 2]
+          }
+        });
+      }
+
+      // 3. Underground Storm Trunks & DryRoute™ V4 Inner Corridors
+      const pipeFeatures = pipesEnabled
+        ? [
+            {
+              type: 'Feature',
+              properties: { lineType: 'storm_trunk' },
+              geometry: {
+                type: 'LineString',
+                coordinates: [
+                  [76.7751, 30.7649],
+                  [76.7794, 30.7333],
+                  [76.7561, 30.7254]
+                ]
+              }
+            },
+            {
+              type: 'Feature',
+              properties: { lineType: 'storm_trunk' },
+              geometry: {
+                type: 'LineString',
+                coordinates: [
+                  [76.8013, 30.7056],
+                  [76.7972, 30.7099]
+                ]
+              }
+            },
+            {
+              type: 'Feature',
+              properties: { lineType: 'v4_dry_corridor' },
+              geometry: {
+                type: 'LineString',
+                coordinates: [
+                  [76.7845, 30.7385],
+                  [76.7815, 30.7358],
+                  [76.7794, 30.7333]
+                ]
+              }
+            }
+          ]
+        : [];
+      const pipeGeoJSON = { type: 'FeatureCollection', features: pipeFeatures };
+
+      if (map.getSource('choe-pipes-source')) {
+        map.getSource('choe-pipes-source').setData(pipeGeoJSON);
+      } else {
+        map.addSource('choe-pipes-source', { type: 'geojson', data: pipeGeoJSON });
+        map.addLayer({
+          id: 'choe-pipes-layer',
+          type: 'line',
+          source: 'choe-pipes-source',
+          paint: {
+            'line-color': [
+              'match',
+              ['get', 'lineType'],
+              'v4_dry_corridor',
+              '#059669',
+              '#DC2626'
+            ],
+            'line-width': 4,
+            'line-dasharray': [2, 2],
+            'line-opacity': 0.92
+          }
+        });
+      }
+    } catch (err) {
+      // ignore non-critical layer errors during style switch
+    }
+  };
+
+  // Load Native MapLibre GL JS (or Leaflet fallback if inside a restricted cross-origin iframe)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (nativeMapLibreAllowed) {
+      if (window.maplibregl) {
+        setMaplibreReady(true);
+        return;
+      }
+
+      const cssId = 'maplibre-gl-cdn-css';
+      if (!document.getElementById(cssId)) {
+        const link = document.createElement('link');
+        link.id = cssId;
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        document.head.appendChild(link);
+      }
+
+      const scriptId = 'maplibre-gl-cdn-js';
+      const existingScript = document.getElementById(scriptId);
+      if (existingScript) {
+        existingScript.addEventListener('load', () => setMaplibreReady(true));
+        existingScript.addEventListener('error', () => setNativeMapLibreAllowed(false));
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+      script.async = true;
+      script.onload = () => setMaplibreReady(true);
+      script.onerror = () => setNativeMapLibreAllowed(false);
+      document.body.appendChild(script);
+    } else {
+      if (window.L) {
+        setLeafletReady(true);
+        return;
+      }
+      const cssId = 'leaflet-cdn-css';
+      if (!document.getElementById(cssId)) {
+        const link = document.createElement('link');
+        link.id = cssId;
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+      const scriptId = 'leaflet-cdn-js';
+      const existingScript = document.getElementById(scriptId);
+      if (existingScript) {
+        existingScript.addEventListener('load', () => setLeafletReady(true));
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      script.onload = () => setLeafletReady(true);
+      document.body.appendChild(script);
+    }
+  }, [nativeMapLibreAllowed]);
+
+  // Initialize Native MapLibre GL JS with Official OpenFreeMap Liberty 3D / Bright 2D Vector Tiles
+  useEffect(() => {
+    if (
+      !nativeMapLibreAllowed ||
+      !maplibreReady ||
+      !mapContainerRef.current ||
+      maplibreInstanceRef.current
+    ) {
       return;
     }
-    let animActive = true;
-    const rotateBearing = () => {
-      if (!animActive) return;
-      const map = mapInstanceRef.current;
-      if (map) {
-        map.setBearing((map.getBearing() + 0.35) % 360);
-      }
-      orbitAnimRef.current = requestAnimationFrame(rotateBearing);
-    };
-    orbitAnimRef.current = requestAnimationFrame(rotateBearing);
-    return () => {
-      animActive = false;
-      if (orbitAnimRef.current) {
-        cancelAnimationFrame(orbitAnimRef.current);
-        orbitAnimRef.current = null;
-      }
-    };
-  }, [isOrbiting]);
 
-  // Render Glowy, Rotating & Pulsing Hydro-Radar Beacons
+    try {
+      const maplibregl = window.maplibregl;
+      const cfg = OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
+
+      const map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: cfg.styleUrl,
+        center: [76.7794, 30.7333],
+        zoom: cfg.zoom,
+        pitch: cfg.pitch,
+        bearing: cfg.bearing,
+        maxPitch: 85,
+        antialias: true
+      });
+
+      map.addControl(
+        new maplibregl.NavigationControl({
+          visualizePitch: true,
+          showZoom: true,
+          showCompass: true
+        }),
+        'bottom-right'
+      );
+
+      map.on('load', () => {
+        syncMapLibreLayers(map, nodes, sarLayerEnabled, showPipesAndDetours, mapMode);
+      });
+
+      map.on('style.load', () => {
+        syncMapLibreLayers(map, nodes, sarLayerEnabled, showPipesAndDetours, mapMode);
+      });
+
+      map.on('move', () => {
+        setCurrentPitch(Math.round(map.getPitch()));
+        setCurrentBearing(Math.round(map.getBearing()));
+      });
+
+      maplibreInstanceRef.current = map;
+
+      return () => {
+        if (orbitFrameRef.current) cancelAnimationFrame(orbitFrameRef.current);
+        maplibreMarkersRef.current.forEach((m) => m.remove());
+        maplibreMarkersRef.current = [];
+        try {
+          map.remove();
+        } catch (e) {
+          // ignore
+        }
+        maplibreInstanceRef.current = null;
+      };
+    } catch (err) {
+      setNativeMapLibreAllowed(false);
+    }
+  }, [nativeMapLibreAllowed, maplibreReady]);
+
+  // Switch OpenFreeMap Style (Liberty 3D, Bright 2D, Positron, Dark HUD) & Camera Pitch/Bearing
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
+    const map = maplibreInstanceRef.current;
+    if (!map || !nativeMapLibreAllowed) return;
 
-    markersRef.current.forEach((m) => {
-      try {
-        m.remove();
-      } catch (e) {}
-    });
-    markersRef.current = [];
+    const cfg = OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
+    try {
+      map.setStyle(cfg.styleUrl);
+      map.flyTo({
+        center: [selectedNode?.lng || 76.7794, selectedNode?.lat || 30.7333],
+        zoom: cfg.zoom,
+        pitch: cfg.pitch,
+        bearing: cfg.bearing,
+        duration: 1100,
+        essential: true
+      });
+      setCurrentPitch(cfg.pitch);
+      setCurrentBearing(cfg.bearing);
+    } catch (e) {
+      // ignore
+    }
+  }, [mapMode, nativeMapLibreAllowed]);
+
+  // Sync GeoJSON Layers & Glowy Rotating Hydro-Radar DOM Beacons in Native MapLibre GL
+  useEffect(() => {
+    const map = maplibreInstanceRef.current;
+    if (!map || !nativeMapLibreAllowed || !window.maplibregl) return;
+
+    syncMapLibreLayers(map, nodes, sarLayerEnabled, showPipesAndDetours, mapMode);
+
+    // Rebuild Glowy Rotating Hydro-Radar Beacons
+    maplibreMarkersRef.current.forEach((m) => m.remove());
+    maplibreMarkersRef.current = [];
 
     nodes.forEach((node) => {
       const isSelected = node.id === selectedNodeId;
@@ -1087,8 +1084,6 @@ function ChoeMapLibreCanvas({
 
       const el = document.createElement('div');
       el.className = 'choe-radar-beacon-wrapper';
-      el.style.width = '96px';
-      el.style.height = '96px';
       el.innerHTML = `
         <div class="choe-beacon-root ${isSelected ? 'is-selected' : ''}" style="--beacon-color:${primaryColor};--beacon-glow:${glowRgba};">
           <div class="choe-sonar-wave"></div>
@@ -1101,48 +1096,280 @@ function ChoeMapLibreCanvas({
           </div>
         </div>
       `;
-      el.addEventListener('click', () => onSelectNode(node.id));
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onSelectNode(node.id);
+      });
 
-      try {
-        const marker = new MapLibreMarker({ element: el, anchor: 'center' })
-          .setLngLat([node.lng, node.lat])
-          .addTo(map);
-        markersRef.current.push(marker);
-      } catch (e) {}
+      const marker = new window.maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([node.lng, node.lat])
+        .addTo(map);
+
+      maplibreMarkersRef.current.push(marker);
     });
-  }, [nodes, selectedNodeId, onSelectNode]);
+  }, [
+    nativeMapLibreAllowed,
+    maplibreReady,
+    nodes,
+    selectedNodeId,
+    sarLayerEnabled,
+    showPipesAndDetours,
+    mapMode,
+    onSelectNode
+  ]);
 
-  // Center on selected node
+  // Smoothly Fly Native MapLibre Camera to Selected Sector Node
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !selectedNodeId) return;
+    const map = maplibreInstanceRef.current;
+    if (!map || !nativeMapLibreAllowed || !selectedNodeId) return;
+    const target = nodes.find((n) => n.id === selectedNodeId);
+    if (!target) return;
+    const cfg = OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
+    try {
+      map.flyTo({
+        center: [target.lng, target.lat],
+        zoom: cfg.zoom,
+        pitch: map.getPitch(),
+        bearing: map.getBearing(),
+        duration: 850,
+        essential: true
+      });
+    } catch (e) {
+      // ignore
+    }
+  }, [selectedNodeId, nativeMapLibreAllowed]);
+
+  // 360° 3D Camera Orbit Animation
+  useEffect(() => {
+    if (!isOrbiting3D) {
+      if (orbitFrameRef.current) cancelAnimationFrame(orbitFrameRef.current);
+      return;
+    }
+
+    let bearingAngle = currentBearing;
+    const animateOrbit = () => {
+      bearingAngle = (bearingAngle + 0.25) % 360;
+      const map = maplibreInstanceRef.current;
+      if (map && nativeMapLibreAllowed) {
+        try {
+          map.rotateTo(bearingAngle, { duration: 0 });
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        setCurrentBearing(Math.round(bearingAngle));
+      }
+      orbitFrameRef.current = requestAnimationFrame(animateOrbit);
+    };
+
+    orbitFrameRef.current = requestAnimationFrame(animateOrbit);
+    return () => {
+      if (orbitFrameRef.current) cancelAnimationFrame(orbitFrameRef.current);
+    };
+  }, [isOrbiting3D, nativeMapLibreAllowed]);
+
+  // Sandbox Fallback Engine (Only used if inside a cross-origin preview iframe that blocks top.location)
+  useEffect(() => {
+    if (
+      nativeMapLibreAllowed ||
+      !leafletReady ||
+      !mapContainerRef.current ||
+      leafletInstanceRef.current
+    ) {
+      return;
+    }
+
+    try {
+      const L = window.L;
+      const cfg = OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
+
+      const map = L.map(mapContainerRef.current, {
+        center: [30.7333, 76.7794],
+        zoom: Math.round(cfg.zoom),
+        zoomControl: false
+      });
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      leafletTileLayerRef.current = L.tileLayer(cfg.fallbackRaster, {
+        maxZoom: 19,
+        attribution: '&copy; OpenFreeMap &copy; OpenStreetMap'
+      }).addTo(map);
+
+      leafletLayerGroupRef.current = L.layerGroup().addTo(map);
+      leafletInstanceRef.current = map;
+
+      setTimeout(() => {
+        if (leafletInstanceRef.current) leafletInstanceRef.current.invalidateSize();
+      }, 200);
+
+      return () => {
+        try {
+          map.remove();
+        } catch (e) {
+          // ignore
+        }
+        leafletInstanceRef.current = null;
+      };
+    } catch (e) {
+      // ignore
+    }
+  }, [nativeMapLibreAllowed, leafletReady]);
+
+  useEffect(() => {
+    const map = leafletInstanceRef.current;
+    if (nativeMapLibreAllowed || !map || !window.L) return;
+    const cfg = OPENFREEMAP_VECTOR_STYLES[mapMode] || OPENFREEMAP_VECTOR_STYLES.liberty_3d;
+    try {
+      if (leafletTileLayerRef.current) {
+        leafletTileLayerRef.current.setUrl(cfg.fallbackRaster);
+      }
+      setCurrentPitch(cfg.pitch);
+      setCurrentBearing(cfg.bearing);
+      map.setZoom(Math.round(cfg.zoom), { animate: true });
+      setTimeout(() => map.invalidateSize(), 220);
+    } catch (e) {
+      // ignore
+    }
+  }, [mapMode, nativeMapLibreAllowed]);
+
+  useEffect(() => {
+    const map = leafletInstanceRef.current;
+    const group = leafletLayerGroupRef.current;
+    if (nativeMapLibreAllowed || !map || !group || !window.L) return;
+
+    try {
+      const L = window.L;
+      group.clearLayers();
+
+      if (showPipesAndDetours) {
+        L.polyline(
+          [
+            [30.7649, 76.7751],
+            [30.7333, 76.7794],
+            [30.7254, 30.7561]
+          ],
+          { color: '#DC2626', weight: 4, dashArray: '6, 6', opacity: 0.9 }
+        ).addTo(group);
+
+        L.polyline(
+          [
+            [30.7056, 76.8013],
+            [30.7099, 76.7972]
+          ],
+          { color: '#DC2626', weight: 4, dashArray: '6, 6', opacity: 0.9 }
+        ).addTo(group);
+
+        L.polyline(
+          [
+            [30.7385, 76.7845],
+            [30.7358, 76.7815],
+            [30.7333, 76.7794]
+          ],
+          { color: '#059669', weight: 4.5, dashArray: '4, 6', opacity: 0.95 }
+        ).addTo(group);
+      }
+
+      if (sarLayerEnabled) {
+        nodes.forEach((n) => {
+          L.circle([n.lat, n.lng], {
+            radius: 260 + n.depthCm * 6,
+            color: '#0284c7',
+            weight: 2.5,
+            fillColor: '#06b6d4',
+            fillOpacity: 0.22
+          }).addTo(group);
+        });
+      }
+
+      nodes.forEach((node) => {
+        const isSelected = node.id === selectedNodeId;
+        const isCrit = node.depthCm >= 45;
+        const isWarn = node.depthCm >= 28 && node.depthCm < 45;
+        const primaryColor = isCrit ? '#DC2626' : isWarn ? '#EA580C' : '#059669';
+        const glowRgba = isCrit
+          ? 'rgba(220, 38, 38, 0.78)'
+          : isWarn
+          ? 'rgba(234, 88, 12, 0.75)'
+          : 'rgba(5, 150, 105, 0.72)';
+
+        const pinIcon = L.divIcon({
+          className: 'choe-radar-beacon-wrapper',
+          html: `
+            <div class="choe-beacon-root ${isSelected ? 'is-selected' : ''}" style="--beacon-color:${primaryColor};--beacon-glow:${glowRgba};">
+              <div class="choe-sonar-wave"></div>
+              <div class="choe-sonar-wave delay-1"></div>
+              <div class="choe-radar-ring-outer"></div>
+              <div class="choe-radar-ring-inner"></div>
+              <div class="choe-beacon-core">
+                <span class="choe-beacon-dot"></span>
+                <span>${node.depthCm}cm</span>
+              </div>
+            </div>
+          `,
+          iconSize: [96, 96],
+          iconAnchor: [48, 48]
+        });
+
+        const marker = L.marker([node.lat, node.lng], { icon: pinIcon }).addTo(group);
+        marker.on('click', () => onSelectNode(node.id));
+      });
+    } catch (e) {
+      // ignore
+    }
+  }, [
+    nativeMapLibreAllowed,
+    leafletReady,
+    nodes,
+    selectedNodeId,
+    sarLayerEnabled,
+    showPipesAndDetours,
+    onSelectNode
+  ]);
+
+  useEffect(() => {
+    const map = leafletInstanceRef.current;
+    if (nativeMapLibreAllowed || !map || !selectedNodeId) return;
     try {
       const target = nodes.find((n) => n.id === selectedNodeId);
       if (target) {
-        map.flyTo({
-          center: [target.lng, target.lat],
-          essential: true,
-          duration: 1000
-        });
+        map.panTo([target.lat, target.lng], { animate: true, duration: 0.7 });
       }
-    } catch (e) {}
-  }, [selectedNodeId, nodes]);
+    } catch (e) {
+      // ignore
+    }
+  }, [selectedNodeId, nodes, nativeMapLibreAllowed]);
+
+  const handleTogglePitch3D = () => {
+    const nextPitch = currentPitch > 20 ? 0 : 60;
+    const nextBearing = nextPitch === 0 ? 0 : -20;
+    setCurrentPitch(nextPitch);
+    setCurrentBearing(nextBearing);
+    if (maplibreInstanceRef.current && nativeMapLibreAllowed) {
+      maplibreInstanceRef.current.easeTo({
+        pitch: nextPitch,
+        bearing: nextBearing,
+        duration: 700
+      });
+    }
+  };
+
+  const is3DMode = mapMode === 'liberty_3d' || mapMode === 'dark_hud' || currentPitch > 20;
 
   return (
     <div
       className={`relative w-full h-[410px] rounded-[26px] overflow-hidden border-2 border-white shadow-xl ${
-        mapMode === 'dark_hud' ? 'bg-[#090D16]' : 'bg-[#dbe4f0]'
+        mapMode === 'dark_hud' ? 'bg-[#090D16]' : 'bg-[#e6ecf5]'
       }`}
     >
-      {/* TOP FLOATING FROSTED GLASS MAP TOOLBAR WITH OFFICIAL OPENFREEMAP STYLES + 3D CONTROLS */}
-      <div className="absolute top-3 left-3 right-3 z-[500] flex flex-wrap items-center justify-between gap-2 bg-white/92 backdrop-blur-xl p-2 rounded-2xl border border-white shadow-lg">
-        {/* Vector style mode buttons */}
+      {/* TOP FLOATING OPENFREEMAP STYLE & 3D CAMERA TOOLBAR */}
+      <div className="absolute top-3 left-3 right-3 z-[500] flex flex-wrap items-center justify-between gap-2 bg-white/94 backdrop-blur-xl p-2 rounded-2xl border border-white shadow-lg">
         <div className="flex flex-wrap items-center gap-1.5">
           {Object.values(OPENFREEMAP_VECTOR_STYLES).map((cfg) => (
             <button
               key={cfg.key}
               type="button"
-              onClick={() => handleSwitchMode(cfg.key)}
+              onClick={() => onChangeMapMode(cfg.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
                 mapMode === cfg.key
                   ? 'bg-[#090D16] text-white shadow-md'
@@ -1154,30 +1381,31 @@ function ChoeMapLibreCanvas({
           ))}
         </div>
 
-        {/* 3D Pitch 60° / 2D Flat 0°, 360° Orbit, and SkyPierce SAR Mask */}
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={togglePitch}
-            className={`px-3 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-              isPitched
-                ? 'bg-[#EA580C] text-white shadow-md'
+            onClick={handleTogglePitch3D}
+            className={`px-3 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+              currentPitch > 20
+                ? 'bg-orange-100 text-[#EA580C] border border-orange-300'
                 : 'bg-slate-100 text-[#090D16] hover:bg-slate-200'
             }`}
           >
-            <span>{isPitched ? '📐 2D Flat 0°' : '🏙️ 3D Pitch 60°'}</span>
+            <Box className="w-3.5 h-3.5" />
+            <span>{currentPitch > 20 ? `3D Pitch ${currentPitch}°` : '2D Flat 0°'}</span>
           </button>
 
           <button
             type="button"
-            onClick={toggleOrbit}
-            className={`px-3 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-              isOrbiting
-                ? 'bg-[#7C3AED] text-white shadow-md animate-pulse'
+            onClick={() => setIsOrbiting3D(!isOrbiting3D)}
+            className={`px-3 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+              isOrbiting3D
+                ? 'bg-[#EA580C] text-white shadow-md'
                 : 'bg-slate-100 text-[#090D16] hover:bg-slate-200'
             }`}
           >
-            <span>{isOrbiting ? '⏹️ Stop Orbit' : '🔄 360° Orbit'}</span>
+            <RotateCw className={`w-3.5 h-3.5 ${isOrbiting3D ? 'animate-spin' : ''}`} />
+            <span>360° Orbit</span>
           </button>
 
           <button
@@ -1189,13 +1417,76 @@ function ChoeMapLibreCanvas({
                 : 'bg-slate-100 text-[#090D16] hover:bg-slate-200'
             }`}
           >
-            <span>📡 SkyPierce™ SAR Mask</span>
+            <span>📡 SkyPierce™ SAR</span>
           </button>
         </div>
       </div>
 
-      {/* Real MapLibre GL Vector Canvas */}
-      <div ref={mapContainerRef} className="w-full h-full" />
+      {/* ACTIVE OPENFREEMAP VECTOR STYLE URL PILL (TOP-LEFT SUB-BAR) */}
+      <div className="absolute top-16 left-3 z-[450] pointer-events-none hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#090D16]/85 backdrop-blur-md text-white font-mono text-[10.5px] font-bold border border-white/20 shadow">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span>Style: {activeStyleCfg.styleUrl}</span>
+      </div>
+
+      {/* High-Density 3D Extruded Buildings Architectural Overlay (For Sandbox Fallback Mode) */}
+      {!nativeMapLibreAllowed && is3DMode && (
+        <svg
+          viewBox="0 0 800 410"
+          className="absolute inset-0 w-full h-full pointer-events-none z-[400] opacity-85"
+        >
+          <g stroke={mapMode === 'dark_hud' ? '#334155' : '#64748b'} strokeWidth="1.1">
+            {[
+              { x: 160, y: 150, w: 38, d: 22, h: 28 },
+              { x: 215, y: 138, w: 46, d: 26, h: 36 },
+              { x: 285, y: 162, w: 42, d: 24, h: 32 },
+              { x: 345, y: 145, w: 52, d: 28, h: 44 },
+              { x: 430, y: 168, w: 48, d: 26, h: 38 },
+              { x: 500, y: 148, w: 44, d: 24, h: 30 },
+              { x: 565, y: 165, w: 50, d: 28, h: 34 },
+              { x: 245, y: 218, w: 44, d: 24, h: 26 },
+              { x: 455, y: 225, w: 54, d: 28, h: 40 },
+              { x: 535, y: 215, w: 40, d: 22, h: 28 }
+            ].map((b, idx) => {
+              const roofFill = mapMode === 'dark_hud' ? '#334155' : '#f8fafc';
+              const leftFill = mapMode === 'dark_hud' ? '#0f172a' : '#94a3b8';
+              const rightFill = mapMode === 'dark_hud' ? '#1e293b' : '#cbd5e1';
+              const p1 = `${b.x},${b.y}`;
+              const p2 = `${b.x + b.w},${b.y - b.d * 0.6}`;
+              const p3 = `${b.x + b.w + b.d},${b.y}`;
+              const p4 = `${b.x + b.d},${b.y + b.d * 0.6}`;
+              const p1b = `${b.x},${b.y + b.h}`;
+              const p3b = `${b.x + b.w + b.d},${b.y + b.h}`;
+              const p4b = `${b.x + b.d},${b.y + b.d * 0.6 + b.h}`;
+              return (
+                <g key={idx}>
+                  <polygon points={`${p1} ${p4} ${p4b} ${p1b}`} fill={leftFill} />
+                  <polygon points={`${p4} ${p3} ${p3b} ${p4b}`} fill={rightFill} />
+                  <polygon points={`${p1} ${p2} ${p3} ${p4}`} fill={roofFill} />
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      )}
+
+      {/* Map Canvas Container */}
+      <div
+        className="w-full h-full transition-transform duration-500 ease-out"
+        style={
+          !nativeMapLibreAllowed
+            ? {
+                transform: is3DMode
+                  ? `perspective(920px) rotateX(${Math.min(36, Math.round(currentPitch * 0.55))}deg) rotateZ(${Math.round(
+                      currentBearing * 0.25
+                    )}deg) scale(1.16)`
+                  : 'none',
+                transformOrigin: 'center center'
+              }
+            : undefined
+        }
+      >
+        <div ref={mapContainerRef} className="w-full h-full" />
+      </div>
 
       {/* FLOATING HIGH-CONTRAST TELEMETRY POPUP CARD + SKYPIERCE SAR RADAR BAR */}
       {selectedNode && (
@@ -1311,22 +1602,22 @@ function ChoeSenseSignatureBrandPage({
   const orbitalAngles = [0, 60, 120, 180, 240, 300];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* TOP MINIMALIST BRAND HEADER BAR */}
-      <div className="glass-card-strong px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+      <div className="glass-card-strong px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <BrandLogo logoUrl={brandLogoUrl} size="lg" />
-          <div className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">
+          <div className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-none">
             <span className="text-[#090D16]">Choe </span>
             <span className="text-[#EA580C]">Sense</span>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-2 ml-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-300 text-[#059669] font-mono text-xs font-extrabold">
+          <span className="inline-flex items-center gap-1.5 ml-1 sm:ml-2 px-2.5 sm:px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-300 text-[#059669] font-mono text-[10px] sm:text-xs font-extrabold">
             <span className="w-2 h-2 rounded-full bg-[#059669] animate-ping" />
             <span>6ms HydroPulse™ Ready</span>
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onOpenUploadModal}
@@ -1347,37 +1638,37 @@ function ChoeSenseSignatureBrandPage({
         </div>
       </div>
 
-      {/* MAIN MINIMALIST HERO & KINETIC 3-CHOE RESONANCE CORE */}
-      <div className="glass-card p-6 sm:p-8 lg:p-10 relative overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          {/* LEFT 6 COLUMNS: BOLD MINIMALIST EDITORIAL + INTERACTIVE TIMELINE SCRUBBER */}
-          <div className="lg:col-span-6 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-orange-300 shadow-sm">
-              <Radio className="w-4 h-4 text-[#EA580C] animate-pulse" />
-              <span className="font-mono text-xs font-extrabold uppercase tracking-wider text-[#090D16]">
+      {/* MAIN MINIMALIST HERO & KINETIC 3-CHOE RESONANCE CORE (ALWAYS SIDE-BY-SIDE 12-COL GRID) */}
+      <div className="glass-card p-4 sm:p-8 lg:p-10 relative overflow-hidden">
+        <div className="grid grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-center">
+          {/* LEFT 7/6 COLUMNS: BOLD MINIMALIST EDITORIAL + INTERACTIVE TIMELINE SCRUBBER */}
+          <div className="col-span-7 lg:col-span-6 space-y-4 sm:space-y-6 min-w-0">
+            <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-white/90 border border-orange-300 shadow-sm">
+              <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#EA580C] animate-pulse shrink-0" />
+              <span className="font-mono text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-[#090D16] truncate">
                 CHANDIGARH AUTONOMOUS HYDRO-INTELLIGENCE
               </span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-extrabold tracking-tight text-[#090D16] leading-[1.06]">
+            <h1 className="text-2xl sm:text-5xl lg:text-[54px] font-extrabold tracking-tight text-[#090D16] leading-[1.06]">
               Twenty Minutes Ahead of the{' '}
               <span className="bg-gradient-to-r from-[#EA580C] via-[#FF8A1F] to-[#2563EB] bg-clip-text text-transparent">
                 Cloudburst.
               </span>
             </h1>
 
-            <p className="text-base sm:text-[17px] font-bold text-[#334155] leading-relaxed max-w-xl">
+            <p className="text-xs sm:text-[17px] font-bold text-[#334155] leading-relaxed max-w-xl">
               Zero physical sensors. Pure street-kerb photogrammetry, cloud-piercing radar, and
               6-millisecond drain physics across Sukhna Choe, N-Choe, and Patiala Ki Rao.
             </p>
 
             {/* 3-STAGE INTERACTIVE PREDICTION SCRUBBER */}
-            <div className="card-white p-4 sm:p-5 space-y-3.5 border-2 border-white">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono uppercase tracking-widest font-extrabold text-[#334155]">
+            <div className="card-white p-3.5 sm:p-5 space-y-3 border-2 border-white">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-widest font-extrabold text-[#334155]">
                   INTERACTIVE PREDICTION HORIZON
                 </span>
-                <span className="font-mono text-xs font-extrabold text-[#EA580C]">
+                <span className="font-mono text-[10px] sm:text-xs font-extrabold text-[#EA580C]">
                   {activeStage.modelTag}
                 </span>
               </div>
@@ -1390,7 +1681,7 @@ function ChoeSenseSignatureBrandPage({
                       key={st.timeTag}
                       type="button"
                       onClick={() => setTimelineStage(st.idx)}
-                      className={`py-2.5 px-3 rounded-2xl font-mono text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                      className={`py-2 sm:py-2.5 px-2 sm:px-3 rounded-2xl font-mono text-[10px] sm:text-xs font-extrabold transition-all cursor-pointer border-2 ${
                         isAct
                           ? 'bg-[#090D16] text-white border-[#090D16] shadow-lg scale-[1.02]'
                           : 'bg-slate-100 text-[#090D16] border-slate-200 hover:bg-white'
@@ -1402,9 +1693,11 @@ function ChoeSenseSignatureBrandPage({
                 })}
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1">
-                <div className="text-base font-extrabold text-[#090D16]">{activeStage.title}</div>
-                <p className="text-xs font-bold text-[#334155] leading-relaxed">
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1">
+                <div className="text-sm sm:text-base font-extrabold text-[#090D16]">
+                  {activeStage.title}
+                </div>
+                <p className="text-[11px] sm:text-xs font-bold text-[#334155] leading-relaxed">
                   {activeStage.desc}
                 </p>
               </div>
@@ -1412,7 +1705,7 @@ function ChoeSenseSignatureBrandPage({
 
             {/* 1-CLICK SCENARIO LAUNCHERS INTO LIVE MAP */}
             <div className="space-y-2">
-              <div className="text-[11px] font-mono uppercase tracking-wider font-extrabold text-[#334155]">
+              <div className="text-[10px] sm:text-[11px] font-mono uppercase tracking-wider font-extrabold text-[#334155]">
                 LAUNCH LIVE SIMULATION SCENARIO →
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1422,7 +1715,7 @@ function ChoeSenseSignatureBrandPage({
                     onTriggerScenario('A_SUKHNA_LOCK');
                     onEnterLiveMap();
                   }}
-                  className="px-4 py-2.5 rounded-full bg-white hover:bg-orange-50 border-2 border-slate-300 hover:border-[#EA580C] text-xs font-extrabold text-[#090D16] transition cursor-pointer shadow-sm"
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white hover:bg-orange-50 border-2 border-slate-300 hover:border-[#EA580C] text-[11px] sm:text-xs font-extrabold text-[#090D16] transition cursor-pointer shadow-sm"
                 >
                   🌊 Sukhna Gate Surge (2800 cusecs)
                 </button>
@@ -1432,7 +1725,7 @@ function ChoeSenseSignatureBrandPage({
                     onTriggerScenario('B_GULLY_AUDIT');
                     onEnterLiveMap();
                   }}
-                  className="px-4 py-2.5 rounded-full bg-white hover:bg-orange-50 border-2 border-slate-300 hover:border-[#EA580C] text-xs font-extrabold text-[#090D16] transition cursor-pointer shadow-sm"
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white hover:bg-orange-50 border-2 border-slate-300 hover:border-[#EA580C] text-[11px] sm:text-xs font-extrabold text-[#090D16] transition cursor-pointer shadow-sm"
                 >
                   🍂 Pre-Monsoon 88% Leaf Choke
                 </button>
@@ -1442,7 +1735,7 @@ function ChoeSenseSignatureBrandPage({
                     onTriggerScenario('C_GRID_COLLAPSE');
                     onEnterLiveMap();
                   }}
-                  className="px-4 py-2.5 rounded-full bg-white hover:bg-orange-50 border-2 border-slate-300 hover:border-[#EA580C] text-xs font-extrabold text-[#090D16] transition cursor-pointer shadow-sm"
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white hover:bg-orange-50 border-2 border-slate-300 hover:border-[#EA580C] text-[11px] sm:text-xs font-extrabold text-[#090D16] transition cursor-pointer shadow-sm"
                 >
                   ⚡ 120mm/h Cloudburst Emergency
                 </button>
@@ -1450,9 +1743,9 @@ function ChoeSenseSignatureBrandPage({
             </div>
           </div>
 
-          {/* RIGHT 6 COLUMNS: KINETIC "3-CHOE HYDRO-RESONANCE CORE" SCULPTURE */}
-          <div className="lg:col-span-6 flex flex-col items-center justify-center">
-            <div className="relative w-full max-w-[490px] aspect-square rounded-[36px] bg-gradient-to-br from-[#090D16] via-[#111827] to-[#1E293B] border-2 border-white/80 shadow-2xl flex items-center justify-center p-6 overflow-hidden">
+          {/* RIGHT 5/6 COLUMNS: KINETIC "3-CHOE HYDRO-RESONANCE CORE" SCULPTURE DOCKED ON RIGHT SIDE */}
+          <div className="col-span-5 lg:col-span-6 flex flex-col items-center justify-center min-w-0">
+            <div className="relative w-full max-w-[490px] aspect-square rounded-[28px] sm:rounded-[36px] bg-gradient-to-br from-[#090D16] via-[#111827] to-[#1E293B] border-2 border-white/80 shadow-2xl flex items-center justify-center p-3 sm:p-6 overflow-hidden">
               {/* Ambient Core Glow */}
               <div
                 className="absolute w-72 h-72 rounded-full blur-3xl opacity-45 pointer-events-none transition-all duration-700"
@@ -1493,7 +1786,7 @@ function ChoeSenseSignatureBrandPage({
                   style={{ animation: 'radarSpin 16s linear infinite' }}
                 />
 
-                {/* Middle Counter-Rotating Hydro-Ring (Representing N-Choe, Sukhna Choe, Patiala Ki Rao) */}
+                {/* Middle Counter-Rotating Hydro-Ring */}
                 <circle
                   cx="200"
                   cy="200"
@@ -1593,19 +1886,19 @@ function ChoeSenseSignatureBrandPage({
                 <span className="px-2.5 py-0.5 rounded-full bg-white/10 border border-white/20 font-mono text-[10px] font-extrabold text-amber-300 uppercase tracking-widest">
                   {selectedNode.sector}
                 </span>
-                <div className="font-mono text-3xl sm:text-4xl font-extrabold text-white tracking-tight mt-1">
+                <div className="font-mono text-2xl sm:text-4xl font-extrabold text-white tracking-tight mt-1">
                   {activeStage.coreNumber}
                 </div>
-                <div className="font-mono text-[10px] font-extrabold uppercase tracking-widest text-cyan-300 mt-0.5">
+                <div className="font-mono text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest text-cyan-300 mt-0.5">
                   {activeStage.coreUnit}
                 </div>
-                <div className="text-[11px] font-bold text-slate-300 mt-1 max-w-[165px] truncate">
+                <div className="text-[10px] sm:text-[11px] font-bold text-slate-300 mt-1 max-w-[165px] truncate">
                   {activeStage.coreSub}
                 </div>
               </div>
 
               {/* Bottom Kinetic Bar */}
-              <div className="absolute bottom-3.5 left-4 right-4 z-20 flex items-center justify-between px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-xs font-mono text-white">
+              <div className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-[10px] sm:text-xs font-mono text-white">
                 <span>🌧️ Rain: {rainMmHr} mm/hr</span>
                 <span>🌊 Sukhna: {sukhnaCusecs} cusecs</span>
                 <button
@@ -1621,22 +1914,22 @@ function ChoeSenseSignatureBrandPage({
         </div>
       </div>
 
-      {/* BOTTOM MINIMALIST 3-PILLAR BENTO STRIP */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      {/* BOTTOM MINIMALIST 3-PILLAR BENTO STRIP (SIDE-BY-SIDE 3-COL GRID) */}
+      <div className="grid grid-cols-3 gap-3 sm:gap-5">
         <div
           onClick={onOpenUploadModal}
-          className="glass-card-strong p-6 cursor-pointer hover:-translate-y-1 transition-all space-y-2"
+          className="glass-card-strong p-4 sm:p-6 cursor-pointer hover:-translate-y-1 transition-all space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-extrabold text-[#EA580C]">
+            <span className="font-mono text-[10px] sm:text-xs font-extrabold text-[#EA580C]">
               01 · ZERO HARDWARE
             </span>
-            <Eye className="w-5 h-5 text-[#EA580C]" />
+            <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-[#EA580C] shrink-0" />
           </div>
-          <h3 className="text-xl font-extrabold text-[#090D16]">
+          <h3 className="text-sm sm:text-xl font-extrabold text-[#090D16]">
             CurbSight™ &amp; SkyPierce™ Radar
           </h3>
-          <p className="text-sm font-bold text-[#334155] leading-relaxed">
+          <p className="text-xs sm:text-sm font-bold text-[#334155] leading-relaxed">
             Measures exact centimeter flood depth from 18cm street kerbs and cloud-piercing
             Sentinel-1 satellite radar—replacing ₹2L fragile sensors.
           </p>
@@ -1644,18 +1937,18 @@ function ChoeSenseSignatureBrandPage({
 
         <div
           onClick={onEnterLiveMap}
-          className="glass-card-strong p-6 cursor-pointer hover:-translate-y-1 transition-all space-y-2"
+          className="glass-card-strong p-4 sm:p-6 cursor-pointer hover:-translate-y-1 transition-all space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-extrabold text-[#2563EB]">
+            <span className="font-mono text-[10px] sm:text-xs font-extrabold text-[#2563EB]">
               02 · 6ms SURROGATE PHYSICS
             </span>
-            <Activity className="w-5 h-5 text-[#2563EB]" />
+            <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-[#2563EB] shrink-0" />
           </div>
-          <h3 className="text-xl font-extrabold text-[#090D16]">
+          <h3 className="text-sm sm:text-xl font-extrabold text-[#090D16]">
             HydroPulse™ &amp; ChoeWave™ T-14
           </h3>
-          <p className="text-sm font-bold text-[#334155] leading-relaxed">
+          <p className="text-xs sm:text-sm font-bold text-[#334155] leading-relaxed">
             Compresses 10-minute EPA-SWMM drain simulations into 6 milliseconds, predicting Sukhna
             Choe outfall lock 14 minutes before streets flood.
           </p>
@@ -1663,18 +1956,18 @@ function ChoeSenseSignatureBrandPage({
 
         <div
           onClick={onEnterLiveMap}
-          className="glass-card-strong p-6 cursor-pointer hover:-translate-y-1 transition-all space-y-2"
+          className="glass-card-strong p-4 sm:p-6 cursor-pointer hover:-translate-y-1 transition-all space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-extrabold text-[#059669]">
+            <span className="font-mono text-[10px] sm:text-xs font-extrabold text-[#059669]">
               03 · AUTONOMOUS DRYROUTE™
             </span>
-            <ShieldCheck className="w-5 h-5 text-[#059669]" />
+            <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[#059669] shrink-0" />
           </div>
-          <h3 className="text-xl font-extrabold text-[#090D16]">
+          <h3 className="text-sm sm:text-xl font-extrabold text-[#090D16]">
             TrustShield™ &amp; Offline V4 Fleet
           </h3>
-          <p className="text-sm font-bold text-[#334155] leading-relaxed">
+          <p className="text-xs sm:text-sm font-bold text-[#334155] leading-relaxed">
             Filters 99.3% of WhatsApp panic spam and dispatches Super-Sucker trucks via dry V4
             internal lanes with a 50m PostGIS anti-fraud lock.
           </p>
@@ -1685,20 +1978,39 @@ function ChoeSenseSignatureBrandPage({
 }
 
 // ============================================================================
-// MAIN APPLICATION — BRAND STAGE ON PAGE 1, SIDE-BY-SIDE MAP ON OTHER PAGES
+// MAIN APPLICATION — PERMANENT SIDE-BY-SIDE SHELL ON MOBILE & LAPTOP
 // ============================================================================
 export default function App() {
-  // Default First Page is 'overview' (Minimalist Brand Stage without Live Grid Map)
+  // Default First Page is 'overview' (Minimalist Brand Stage with Side-by-Side Radar Core)
   const [activePage, setActivePage] = useState('overview');
   const [neonMode, setNeonMode] = useState(false);
+
+  // Mobile 1:1 Laptop Layout Lock & Sidebar Slim Toggle
+  // Guarantees the exact laptop side-by-side layout on mobile phones without vertical stacking
+  const [desktopScaleLock, setDesktopScaleLock] = useState(true);
+  const [sidebarCompact, setSidebarCompact] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1360
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobileViewport = viewportWidth < 1024;
+  const laptopZoomRatio =
+    isMobileViewport && desktopScaleLock
+      ? Number(Math.max(0.28, Math.min(1, viewportWidth / 1340)).toFixed(3))
+      : 1;
 
   const [mapMode, setMapMode] = useState('liberty_3d');
   const [sarLayerEnabled, setSarLayerEnabled] = useState(true);
   const [showPipesAndDetours] = useState(true);
 
   const [brandLogoUrl, setBrandLogoUrl] = useState(ANTIGRAVITY_CONFIG.BRAND_LOGO_URL);
-  const [mapApiKey, setMapApiKey] = useState(ANTIGRAVITY_CONFIG.MAP_API_KEY);
-  const [customTileUrl] = useState(ANTIGRAVITY_CONFIG.CUSTOM_MAP_TILE_URL);
 
   const [nodesList, setNodesList] = useState(INITIAL_CHANDIGARH_NODES);
   const [rainMmHr, setRainMmHr] = useState(48);
@@ -1996,14 +2308,16 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen relative overflow-x-hidden flex flex-col lg:flex-row selection:bg-[#EA580C] selection:text-white ${
+      className={`min-h-screen relative overflow-x-auto flex flex-row items-stretch selection:bg-[#EA580C] selection:text-white ${
         neonMode ? 'bg-[#090D16] text-white' : 'text-[#090D16]'
       }`}
       style={{
         fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
         background: neonMode
           ? 'radial-gradient(circle at 15% 20%, #1e293b 0%, #090d16 70%)'
-          : 'linear-gradient(135deg, #F3E6DA 0%, #EAD7C8 48%, #E2EBF8 100%)'
+          : 'linear-gradient(135deg, #F3E6DA 0%, #EAD7C8 48%, #E2EBF8 100%)',
+        minWidth: isMobileViewport && desktopScaleLock ? '1340px' : undefined,
+        zoom: isMobileViewport && desktopScaleLock ? laptopZoomRatio : undefined
       }}
     >
       {/* GLOBAL FROSTED GLASS DESIGN SYSTEM TOKENS + GLOWY ROTATING BEACON ANIMATIONS */}
@@ -2260,28 +2574,77 @@ export default function App() {
         </div>
       )}
 
+      {/* FLOATING MOBILE VIEWPORT MODE SWITCHER (1:1 LAPTOP LOCK vs FLUID SIDE-BY-SIDE) */}
+      {isMobileViewport && (
+        <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-[#090D16]/95 text-white px-3.5 py-2 rounded-full border-2 border-[#FF8A1F] shadow-2xl">
+          <button
+            type="button"
+            onClick={() => setDesktopScaleLock(!desktopScaleLock)}
+            className="flex items-center gap-1.5 text-xs font-mono font-extrabold text-amber-300 cursor-pointer"
+          >
+            {desktopScaleLock ? (
+              <>
+                <Monitor className="w-3.5 h-3.5 text-[#FF8A1F]" />
+                <span>1:1 Laptop View Locked</span>
+              </>
+            ) : (
+              <>
+                <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Fluid Side-by-Side</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* ====================================================================
-          ZONE 1: LEFT FROSTED GLASS SIDEBAR (CLEAN BRAND HEADER + PRESETS)
+          ZONE 1: PERMANENT LEFT-DOCKED FROSTED GLASS SIDEBAR
+          Never stacks vertically on top of the page on mobile!
       ==================================================================== */}
-      <aside className="relative z-10 w-full lg:w-[250px] shrink-0 p-3.5 lg:py-5 lg:pl-5 lg:pr-2 flex flex-col justify-between select-none">
-        <div className="glass-card-strong h-full px-5 py-6 flex flex-col justify-between">
-          <div className="space-y-6">
-            {/* Clean Brand Header — ONLY Logo + Choe Sense */}
-            <button
-              type="button"
-              onClick={() => setActivePage('overview')}
-              className="flex items-center gap-3 text-left group cursor-pointer w-full"
-            >
-              <BrandLogo logoUrl={brandLogoUrl} />
-              <span className="text-[23px] font-extrabold tracking-tight text-[#090D16] leading-none">
-                Choe Sense
-              </span>
-            </button>
+      <aside
+        className={`relative z-20 ${
+          sidebarCompact
+            ? 'w-[96px] sm:w-[116px]'
+            : desktopScaleLock && isMobileViewport
+            ? 'w-[250px]'
+            : 'w-[148px] sm:w-[200px] lg:w-[250px]'
+        } shrink-0 sticky top-0 h-screen overflow-y-auto p-2.5 sm:p-3.5 lg:py-5 lg:pl-5 lg:pr-2 flex flex-col justify-between select-none transition-all duration-300`}
+      >
+        <div className="glass-card-strong h-full px-3 sm:px-5 py-5 sm:py-6 flex flex-col justify-between overflow-y-auto">
+          <div className="space-y-5 sm:space-y-6">
+            {/* Clean Brand Header — Logo + Choe Sense + Slim Sidebar Toggle */}
+            <div className="flex items-center justify-between gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActivePage('overview')}
+                className="flex items-center gap-2.5 text-left group cursor-pointer min-w-0"
+              >
+                <BrandLogo logoUrl={brandLogoUrl} />
+                {!sidebarCompact && (
+                  <span className="text-[17px] sm:text-[22px] font-extrabold tracking-tight text-[#090D16] leading-none truncate">
+                    Choe Sense
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSidebarCompact(!sidebarCompact)}
+                title={sidebarCompact ? 'Expand Left Sidebar' : 'Slim Left Sidebar'}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-orange-50 text-[#334155] hover:text-[#EA580C] border border-slate-200 transition cursor-pointer shrink-0"
+              >
+                {sidebarCompact ? (
+                  <PanelLeftOpen className="w-4 h-4" />
+                ) : (
+                  <PanelLeftClose className="w-4 h-4" />
+                )}
+              </button>
+            </div>
 
             {/* PAGES NAVIGATION */}
             <div className="space-y-1.5">
-              <div className="px-3 text-[11px] font-mono uppercase tracking-widest text-[#334155] font-extrabold mb-2">
-                COMMAND PAGES
+              <div className="px-2 sm:px-3 text-[10px] sm:text-[11px] font-mono uppercase tracking-widest text-[#334155] font-extrabold mb-2 truncate">
+                {sidebarCompact ? 'PAGES' : 'COMMAND PAGES'}
               </div>
 
               {NAV_PAGES.map((item) => {
@@ -2291,7 +2654,7 @@ export default function App() {
                     key={item.id}
                     type="button"
                     onClick={() => setActivePage(item.id)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[14.5px] tracking-tight transition-all cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-2.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-[14.5px] tracking-tight transition-all cursor-pointer ${
                       isActive
                         ? 'bg-white text-[#090D16] font-extrabold border-2 border-orange-300/90 shadow-md'
                         : 'text-[#1E293B] font-bold hover:text-[#090D16] hover:bg-white/70'
@@ -2299,9 +2662,9 @@ export default function App() {
                   >
                     <span className="truncate">{item.label}</span>
                     {isActive ? (
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#EA580C] shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#EA580C] shrink-0 ml-1" />
                     ) : (
-                      item.locked && <Lock className="w-4 h-4 text-[#334155] shrink-0" />
+                      item.locked && <Lock className="w-3.5 h-3.5 text-[#334155] shrink-0 ml-1" />
                     )}
                   </button>
                 );
@@ -2309,68 +2672,74 @@ export default function App() {
             </div>
 
             {/* 1-CLICK JUDGE DEMO SCENARIO COMBINATIONS */}
-            <div className="space-y-2 pt-3 border-t border-slate-200">
-              <div className="px-2 text-[11px] font-mono uppercase tracking-wider text-[#EA580C] font-extrabold">
-                ⚡ 1-CLICK JUDGE SCENARIOS
+            {!sidebarCompact && (
+              <div className="space-y-2 pt-3 border-t border-slate-200">
+                <div className="px-1 sm:px-2 text-[10px] sm:text-[11px] font-mono uppercase tracking-wider text-[#EA580C] font-extrabold">
+                  ⚡ 1-CLICK JUDGE SCENARIOS
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyJudgeScenario('A_SUKHNA_LOCK');
+                    setActivePage('dashboard');
+                  }}
+                  className="w-full text-left px-2.5 sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-orange-50 border border-slate-300 hover:border-orange-300 text-[11px] sm:text-xs font-extrabold text-[#090D16] transition cursor-pointer"
+                >
+                  1. Sukhna Gate Surge (2800 cusecs)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyJudgeScenario('B_GULLY_AUDIT');
+                    setActivePage('dashboard');
+                  }}
+                  className="w-full text-left px-2.5 sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-orange-50 border border-slate-300 hover:border-orange-300 text-[11px] sm:text-xs font-extrabold text-[#090D16] transition cursor-pointer"
+                >
+                  2. Pre-Monsoon 88% Leaf Choke
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyJudgeScenario('C_GRID_COLLAPSE');
+                    setActivePage('dashboard');
+                  }}
+                  className="w-full text-left px-2.5 sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-orange-50 border border-slate-300 hover:border-orange-300 text-[11px] sm:text-xs font-extrabold text-[#090D16] transition cursor-pointer"
+                >
+                  3. 120mm/h Cloudburst Emergency
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  applyJudgeScenario('A_SUKHNA_LOCK');
-                  setActivePage('dashboard');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl bg-slate-100 hover:bg-orange-50 border border-slate-300 hover:border-orange-300 text-xs font-extrabold text-[#090D16] transition cursor-pointer"
-              >
-                1. Sukhna Gate Surge (2800 cusecs)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  applyJudgeScenario('B_GULLY_AUDIT');
-                  setActivePage('dashboard');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl bg-slate-100 hover:bg-orange-50 border border-slate-300 hover:border-orange-300 text-xs font-extrabold text-[#090D16] transition cursor-pointer"
-              >
-                2. Pre-Monsoon 88% Leaf Choke
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  applyJudgeScenario('C_GRID_COLLAPSE');
-                  setActivePage('dashboard');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl bg-slate-100 hover:bg-orange-50 border border-slate-300 hover:border-orange-300 text-xs font-extrabold text-[#090D16] transition cursor-pointer"
-              >
-                3. 120mm/h Cloudburst Emergency
-              </button>
-            </div>
+            )}
           </div>
 
           {/* Bottom Status Pill */}
           <div className="pt-4 mt-4 border-t border-slate-200">
-            <div className="p-3.5 rounded-2xl bg-[#1C1C1C] text-white space-y-1 shadow-md">
+            <div className="p-2.5 sm:p-3.5 rounded-2xl bg-[#1C1C1C] text-white space-y-1 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono uppercase tracking-wider font-extrabold text-emerald-400">
+                <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-wider font-extrabold text-emerald-400 truncate">
                   ● HYDROPULSE™ LIVE
                 </span>
-                <span className="text-xs font-mono font-extrabold text-amber-400">5.8 ms</span>
+                {!sidebarCompact && (
+                  <span className="text-xs font-mono font-extrabold text-amber-400">5.8 ms</span>
+                )}
               </div>
-              <div className="text-xs font-bold text-slate-300">
-                SkyPierce™ SAR &amp; Open-Meteo
-              </div>
+              {!sidebarCompact && (
+                <div className="text-[11px] sm:text-xs font-bold text-slate-300 truncate">
+                  SkyPierce™ SAR &amp; Open-Meteo
+                </div>
+              )}
             </div>
           </div>
         </div>
       </aside>
 
       {/* ====================================================================
-          MAIN STAGE:
-          - IF `activePage === 'overview'`: Render Signature Minimalist Choe Sense
-            Brand & Kinetic 3-Choe Hydro-Resonance Core (No Live Grid Map on Page 1)
-          - OTHERWISE: Render Side-by-Side Workspace + Live Grid Map with
-            Glowy, Rotating & Pulsing Radar Beacons
+          MAIN STAGE (PERMANENTLY BESIDE THE LEFT SIDEBAR ON MOBILE & LAPTOP):
+          - IF `activePage === 'overview'`: Renders Signature Minimalist Choe Sense
+            Brand & Kinetic 3-Choe Hydro-Resonance Core Side-by-Side
+          - OTHERWISE: Renders Side-by-Side Workspace (Zone 2) + Docked Live
+            Command Dashboard (Zone 3) on the Right Side
       ==================================================================== */}
-      <main className="relative z-10 flex-1 min-w-0 p-3.5 sm:p-5 lg:py-5 lg:pr-5 lg:pl-3 overflow-y-auto">
+      <main className="relative z-10 flex-1 min-w-0 p-3 sm:p-5 lg:py-5 lg:pr-5 lg:pl-3 overflow-y-auto">
         <div className="max-w-[1420px] mx-auto">
           {activePage === 'overview' ? (
             <ChoeSenseSignatureBrandPage
@@ -2386,12 +2755,12 @@ export default function App() {
               totalRawMsgs={computedTelemetry.totalRawMsgs}
             />
           ) : (
-            <div className="glass-card p-5 sm:p-6 lg:p-7">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="glass-card p-4 sm:p-6 lg:p-7">
+              <div className="grid grid-cols-12 gap-4 sm:gap-6 items-start">
                 {/* ============================================================
-                    ZONE 2: DYNAMIC PAGE WORKSPACE (LEFT/CENTER 4 COLUMNS)
+                    ZONE 2: DYNAMIC PAGE WORKSPACE (LEFT/CENTER 5/4 COLUMNS)
                 ============================================================ */}
-                <div className="lg:col-span-4 space-y-4">
+                <div className="col-span-5 lg:col-span-4 space-y-4 min-w-0">
                   {/* Top Quick-Theme & Page Pills */}
                   <div className="flex flex-wrap gap-1.5">
                     {[
@@ -2744,20 +3113,19 @@ export default function App() {
                       <div className="card-white p-4 space-y-3">
                         <div className="flex items-center gap-1.5 text-xs font-mono uppercase text-[#EA580C] font-extrabold">
                           <Key className="w-3.5 h-3.5" />
-                          <span>MAP API KEY &amp; LOGO CONFIG</span>
+                          <span>OPENFREEMAP 3D/2D &amp; BRAND LOGO CONFIG</span>
                         </div>
 
-                        <div>
-                          <label className="block text-[11px] font-extrabold uppercase text-[#334155] mb-1">
-                            MapTiler / Map API Key (Optional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Paste VITE_MAP_API_KEY..."
-                            value={mapApiKey}
-                            onChange={(e) => setMapApiKey(e.target.value)}
-                            className="glass-input w-full text-xs font-mono font-bold"
-                          />
+                        <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+                          <div className="text-[11px] font-mono font-extrabold text-[#059669]">
+                            ✓ LOCKED TO OFFICIAL KEYLESS OPENFREEMAP VECTOR TILES
+                          </div>
+                          <div className="text-[11px] font-mono font-bold text-[#334155] break-all">
+                            3D: {ANTIGRAVITY_CONFIG.OPENFREEMAP_LIBERTY_3D_URL}
+                          </div>
+                          <div className="text-[11px] font-mono font-bold text-[#334155] break-all">
+                            2D: {ANTIGRAVITY_CONFIG.OPENFREEMAP_BRIGHT_2D_URL}
+                          </div>
                         </div>
 
                         <div>
@@ -2798,11 +3166,12 @@ export default function App() {
                 </div>
 
                 {/* ============================================================
-                    ZONE 3: DOCKED SIDE-BY-SIDE LIVE DASHBOARD (8 COLUMNS)
+                    ZONE 3: DOCKED SIDE-BY-SIDE LIVE DASHBOARD (RIGHT 7/8 COLUMNS)
+                    Always positioned on the right side in mobile & laptop!
                 ============================================================ */}
-                <div className="lg:col-span-8 space-y-4">
+                <div className="col-span-7 lg:col-span-8 space-y-4 min-w-0">
                   <div className="glass-card-strong overflow-hidden">
-                    <div className="px-5 py-2.5 bg-white/90 border-b border-slate-200/90 flex flex-wrap items-center justify-between gap-2">
+                    <div className="px-4 sm:px-5 py-2.5 bg-white/90 border-b border-slate-200/90 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="w-3.5 h-3.5 rounded-full bg-[#ff5f56]" />
                         <span className="w-3.5 h-3.5 rounded-full bg-[#ffbd2e]" />
@@ -2818,7 +3187,7 @@ export default function App() {
                     </div>
 
                     <div
-                      className={`p-5 sm:p-6 space-y-4 transition-colors duration-300 ${
+                      className={`p-4 sm:p-6 space-y-4 transition-colors duration-300 ${
                         neonMode
                           ? 'fw-neon-dot-grid text-white'
                           : 'fw-light-dot-grid text-[#090D16]'
@@ -2828,7 +3197,7 @@ export default function App() {
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3.5">
                           <BrandLogo logoUrl={brandLogoUrl} size="lg" />
-                          <div className="text-4xl sm:text-[44px] font-extrabold tracking-tight leading-none">
+                          <div className="text-3xl sm:text-[44px] font-extrabold tracking-tight leading-none">
                             <span className={neonMode ? 'text-white' : 'text-[#090D16]'}>
                               Choe{' '}
                             </span>
@@ -2845,23 +3214,23 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* TOP INLINE SLIDER BAR + QUICK UPLOAD BUTTONS */}
+                      {/* TOP INLINE SLIDER BAR + QUICK UPLOAD BUTTONS (3-COL SIDE-BY-SIDE) */}
                       <div className="card-white p-4 space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
+                        <div className="grid grid-cols-3 gap-3 sm:gap-5 items-center">
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 text-sm font-extrabold text-[#090D16]">
-                                <Droplets className="w-4 h-4 text-[#2563EB]" />
+                              <span className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-[#090D16]">
+                                <Droplets className="w-4 h-4 text-[#2563EB] shrink-0" />
                                 <span>Rainfall</span>
                                 <button
                                   type="button"
                                   onClick={syncLiveOpenMeteoWeather}
-                                  className="px-2 py-0.5 rounded-full bg-blue-50 text-[#2563EB] border border-blue-300 text-[11px] font-extrabold cursor-pointer"
+                                  className="px-2 py-0.5 rounded-full bg-blue-50 text-[#2563EB] border border-blue-300 text-[10px] sm:text-[11px] font-extrabold cursor-pointer"
                                 >
                                   ⛅ Live
                                 </button>
                               </span>
-                              <span className="font-mono text-base font-extrabold text-[#2563EB]">
+                              <span className="font-mono text-sm sm:text-base font-extrabold text-[#2563EB]">
                                 {rainMmHr} mm/hr
                               </span>
                             </div>
@@ -2877,11 +3246,11 @@ export default function App() {
 
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 text-sm font-extrabold text-[#090D16]">
-                                <Layers className="w-4 h-4 text-[#EA580C]" />
+                              <span className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-[#090D16]">
+                                <Layers className="w-4 h-4 text-[#EA580C] shrink-0" />
                                 <span>Gully Choke</span>
                               </span>
-                              <span className="font-mono text-base font-extrabold text-[#EA580C]">
+                              <span className="font-mono text-sm sm:text-base font-extrabold text-[#EA580C]">
                                 {gullyChokePct}%
                               </span>
                             </div>
@@ -2897,11 +3266,11 @@ export default function App() {
 
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 text-sm font-extrabold text-[#090D16]">
-                                <Zap className="w-4 h-4 text-[#7C3AED]" />
+                              <span className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-[#090D16]">
+                                <Zap className="w-4 h-4 text-[#7C3AED] shrink-0" />
                                 <span>Sukhna Floodgate</span>
                               </span>
-                              <span className="font-mono text-base font-extrabold text-[#7C3AED]">
+                              <span className="font-mono text-sm sm:text-base font-extrabold text-[#7C3AED]">
                                 {sukhnaCusecs} cusecs
                               </span>
                             </div>
@@ -2969,8 +3338,6 @@ export default function App() {
                         sarLayerEnabled={sarLayerEnabled}
                         onToggleSarLayer={() => setSarLayerEnabled(!sarLayerEnabled)}
                         showPipesAndDetours={showPipesAndDetours}
-                        mapApiKey={mapApiKey}
-                        customTileUrl={customTileUrl}
                       />
 
                       {/* HIGH-VISIBILITY SECTOR STATUS PILLS BAR */}
@@ -3010,15 +3377,15 @@ export default function App() {
                         })}
                       </div>
 
-                      {/* LOWER 2-COLUMN LIVE TELEMETRY & DRYROUTE FLEET CARDS */}
-                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                        <div className="lg:col-span-7 card-white p-5 space-y-3.5">
+                      {/* LOWER 2-COLUMN LIVE TELEMETRY & DRYROUTE FLEET CARDS (SIDE-BY-SIDE 12-COL) */}
+                      <div className="grid grid-cols-12 gap-4">
+                        <div className="col-span-7 card-white p-4 sm:p-5 space-y-3.5 min-w-0">
                           <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-slate-100 pb-2.5">
                             <div>
                               <div className="text-xs font-mono uppercase text-[#EA580C] font-extrabold">
                                 {selectedNode.code} · LOCAL RAIN: {selectedNode.localRain} MM/HR
                               </div>
-                              <h3 className="text-lg font-extrabold tracking-tight text-[#090D16]">
+                              <h3 className="text-base sm:text-lg font-extrabold tracking-tight text-[#090D16]">
                                 {selectedNode.name}
                               </h3>
                             </div>
@@ -3027,39 +3394,39 @@ export default function App() {
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                            <div className="p-3 rounded-2xl bg-slate-100 border border-slate-300">
-                              <div className="text-[11px] text-[#334155] font-extrabold uppercase">
+                          <div className="grid grid-cols-4 gap-2.5">
+                            <div className="p-2.5 sm:p-3 rounded-2xl bg-slate-100 border border-slate-300">
+                              <div className="text-[10px] sm:text-[11px] text-[#334155] font-extrabold uppercase">
                                 CurbSight™ Depth
                               </div>
-                              <div className="font-mono text-2xl font-extrabold text-[#090D16] mt-0.5">
+                              <div className="font-mono text-lg sm:text-2xl font-extrabold text-[#090D16] mt-0.5">
                                 {selectedNode.depthCm} cm
                               </div>
                             </div>
 
-                            <div className="p-3 rounded-2xl bg-red-50 border border-red-200">
-                              <div className="text-[11px] text-[#DC2626] font-extrabold uppercase">
+                            <div className="p-2.5 sm:p-3 rounded-2xl bg-red-50 border border-red-200">
+                              <div className="text-[10px] sm:text-[11px] text-[#DC2626] font-extrabold uppercase">
                                 HydroPulse™ Surge
                               </div>
-                              <div className="font-mono text-2xl font-extrabold text-[#DC2626] mt-0.5">
+                              <div className="font-mono text-lg sm:text-2xl font-extrabold text-[#DC2626] mt-0.5">
                                 T-{selectedNode.backflowEtaMins}m
                               </div>
                             </div>
 
-                            <div className="p-3 rounded-2xl bg-orange-50 border border-orange-200">
-                              <div className="text-[11px] text-[#EA580C] font-extrabold uppercase">
+                            <div className="p-2.5 sm:p-3 rounded-2xl bg-orange-50 border border-orange-200">
+                              <div className="text-[10px] sm:text-[11px] text-[#EA580C] font-extrabold uppercase">
                                 Gully Choke
                               </div>
-                              <div className="font-mono text-2xl font-extrabold text-[#EA580C] mt-0.5">
+                              <div className="font-mono text-lg sm:text-2xl font-extrabold text-[#EA580C] mt-0.5">
                                 {selectedNode.choke}%
                               </div>
                             </div>
 
-                            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200">
-                              <div className="text-[11px] text-[#2563EB] font-extrabold uppercase">
+                            <div className="p-2.5 sm:p-3 rounded-2xl bg-blue-50 border border-blue-200">
+                              <div className="text-[10px] sm:text-[11px] text-[#2563EB] font-extrabold uppercase">
                                 Pipe Level
                               </div>
-                              <div className="font-mono text-2xl font-extrabold text-[#2563EB] mt-0.5">
+                              <div className="font-mono text-lg sm:text-2xl font-extrabold text-[#2563EB] mt-0.5">
                                 {selectedNode.hglElevM}m
                               </div>
                             </div>
@@ -3072,7 +3439,7 @@ export default function App() {
                             </div>
                           )}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                          <div className="grid grid-cols-2 gap-2.5 text-xs">
                             <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200">
                               <div className="font-mono uppercase text-[#EA580C] font-extrabold">
                                 ⚡ SUBSTATION GUARD
@@ -3101,9 +3468,9 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="lg:col-span-5 card-white p-5 space-y-3">
+                        <div className="col-span-5 card-white p-4 sm:p-5 space-y-3 min-w-0">
                           <div className="flex items-center justify-between border-b-2 border-slate-100 pb-2.5">
-                            <h3 className="text-lg font-extrabold tracking-tight text-[#090D16]">
+                            <h3 className="text-base sm:text-lg font-extrabold tracking-tight text-[#090D16]">
                               Active Emergency Pump Fleet
                             </h3>
                             <span className="px-2.5 py-1 rounded-full bg-purple-100 border border-purple-300 text-purple-950 font-mono text-[11px] font-extrabold">
